@@ -20,9 +20,9 @@ using namespace v8;
 
 RtnString StringToRtnString(v8::Isolate* iso, Local<String> val) {
   RtnString res = {};
-  res.length = val->Utf8LengthV2(iso);
+  res.length = val->Utf8Length(iso);
   res.data = static_cast<char*>(malloc(res.length));
-  val->WriteUtf8V2(iso, res.data, res.length);
+  val->WriteUtf8(iso, res.data, res.length);
   return res;
 }
 
@@ -223,7 +223,8 @@ ValuePtr NewValueExternal(IsolatePtr iso, void* v) {
   val->id = 0;
   val->iso = iso;
   val->ctx = ctx;
-  val->ptr = Global<Value>(iso, External::New(iso, v));
+  val->ptr = Global<Value>(
+      iso, External::New(iso, v, kExternalPointerTypeTagDefault));
   return tracked_value(ctx, val);
 }
 
@@ -245,7 +246,7 @@ const uint32_t* ValueToArrayIndex(ValuePtr ptr) {
 
 void* ValueToExternal(ValuePtr ptr) {
   LOCAL_VALUE(ptr);
-  return value.As<External>()->Value();
+  return value.As<External>()->Value(kExternalPointerTypeTagDefault);
 }
 
 uintptr_t ValueToExternalUintptr(ValuePtr ptr) {
