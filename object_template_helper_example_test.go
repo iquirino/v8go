@@ -3,7 +3,7 @@ package v8go_test
 import (
 	"fmt"
 
-	v8 "github.com/gost-dom/v8go"
+	v8 "github.com/iquirino/v8go"
 )
 
 // SetObjectTemplateAccessorProperty shows an example of a helper that client

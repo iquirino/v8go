@@ -15,7 +15,7 @@ Do NOT do this yet. When we do, update every occurrence of the module path:
   regenerating with the new value rewrites the go.mod/cgo files above.
 - `README.md` / docs references.
 
-Open question: the root module is currently `github.com/gost-dom/v8go` while the
+Open question: the root module is currently `github.com/iquirino/v8go` while the
 deps modules live under `github.com/tommie/v8go`. Decide whether the root module
 also moves to `github.com/iquirino/v8go` for consistency, or only the deps paths
 change.

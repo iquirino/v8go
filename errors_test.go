@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	v8 "github.com/gost-dom/v8go"
+	v8 "github.com/iquirino/v8go"
 )
 
 func TestJSErrorFormat(t *testing.T) {

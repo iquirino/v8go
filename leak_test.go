@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gost-dom/v8go"
+	"github.com/iquirino/v8go"
 )
 
 func TestMain(m *testing.M) {
