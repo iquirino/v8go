@@ -133,6 +133,13 @@ def build_gn_args():
         #
         # V8 itself fixed this in https://chromium-review.googlesource.com/c/v8/v8/+/3930160.
         gnargs += 'arm_control_flow_integrity="none"\n'
+    if args.os == "linux":
+        # We build with clang but the resulting static library is linked by the
+        # consumer's cgo toolchain (GNU ld). V8/Chromium enables experimental
+        # ELF CREL relocations (-Wa,--crel) when is_linux && use_lld, and GNU ld
+        # cannot read CREL ("skipping incompatible ... libv8-*.a"). Disable lld
+        # so clang emits standard relocations that GNU ld can link.
+        gnargs += 'use_lld=false\n'
     if args.os == "darwin":
         # V8 15.x's PartitionAlloc allocator shim (allocator_shim/*_apple) declares
         # operator new/delete in a way that conflicts with the macOS libc++ <new>
