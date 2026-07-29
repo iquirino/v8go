@@ -39,7 +39,11 @@ deps_path = os.path.dirname(os.path.realpath(__file__))
 v8_path = os.path.join(deps_path, "v8")
 tools_path = os.path.join(deps_path, "depot_tools")
 is_windows = platform.system().lower() == "windows"
-is_clang = args.clang if args.clang is not None else args.os != "linux"
+# Default to clang everywhere. V8 15.x assumes clang: its arm64 SIMD paths use
+# clang-only SVE/NEON builtins that GCC cannot compile, and clang is the
+# configuration V8/Chromium actually test on Linux. Pass --no-clang to force
+# GCC (not supported for arm64).
+is_clang = args.clang if args.clang is not None else True
 
 def get_custom_deps():
     # These deps are unnecessary for building.
@@ -129,6 +133,13 @@ def build_gn_args():
         #
         # V8 itself fixed this in https://chromium-review.googlesource.com/c/v8/v8/+/3930160.
         gnargs += 'arm_control_flow_integrity="none"\n'
+    if args.os == "darwin":
+        # V8 15.x's PartitionAlloc allocator shim (allocator_shim/*_apple) declares
+        # operator new/delete in a way that conflicts with the macOS libc++ <new>
+        # header under -fvisibility=hidden ("visibility does not match previous
+        # declaration"). An embedded monolith does not need PartitionAlloc to
+        # intercept the process allocator, so disable the shim on macOS.
+        gnargs += 'use_allocator_shim=false\n'
 
     return gnargs
 
@@ -319,7 +330,22 @@ def allocate_disjoint_files(ar_files, case_sensitive=True):
 
     return ar_file_groups
 
+def reset_toolchain_ar():
+    """Revert any cached edit to the Linux GCC toolchain's ar path.
+
+    A previous GCC build may have left build/toolchain/linux/BUILD.gn modified
+    (see fixup_gcc_toolchain_ar), and the CI caches deps/v8/build. gclient sync
+    refuses to run when a managed dependency has local modifications, so undo it
+    before syncing. No-op on a fresh checkout.
+    """
+    build_dir = os.path.join(v8_path, "build")
+    build_gn = os.path.join(build_dir, "toolchain", "linux", "BUILD.gn")
+    if os.path.isdir(build_dir) and os.path.exists(build_gn):
+        subprocess.call(["git", "checkout", "--", "toolchain/linux/BUILD.gn"],
+                        cwd=build_dir)
+
 def main():
+    reset_toolchain_ar()
     v8deps()
     fixup_gcc_toolchain_ar()
     if is_windows:
