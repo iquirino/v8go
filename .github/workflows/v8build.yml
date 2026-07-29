@@ -20,6 +20,12 @@ on:
         description: The resulting SHA commitish.
         value: ${{ jobs.syncsubdeps.outputs.sha }}
 
+# The commit/syncsubdeps jobs push built artifacts back to the branch, which
+# requires write access for the GITHUB_TOKEN. (Also ensure Settings > Actions >
+# General > Workflow permissions is set to "Read and write permissions".)
+permissions:
+  contents: write
+
 jobs:
   build_common:
     name: Build Architecture Independent Files
