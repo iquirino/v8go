@@ -133,13 +133,6 @@ def build_gn_args():
         #
         # V8 itself fixed this in https://chromium-review.googlesource.com/c/v8/v8/+/3930160.
         gnargs += 'arm_control_flow_integrity="none"\n'
-    if args.os == "linux":
-        # We build with clang but the resulting static library is linked by the
-        # consumer's cgo toolchain (GNU ld). V8/Chromium enables experimental
-        # ELF CREL relocations (-Wa,--crel) when is_linux && use_lld, and GNU ld
-        # cannot read CREL ("skipping incompatible ... libv8-*.a"). Disable lld
-        # so clang emits standard relocations that GNU ld can link.
-        gnargs += 'use_lld=false\n'
     if args.os == "darwin":
         # V8 15.x's PartitionAlloc allocator shim (allocator_shim/*_apple) declares
         # operator new/delete in a way that conflicts with the macOS libc++ <new>
@@ -216,6 +209,36 @@ def fixup_gcc_toolchain_ar():
             content = content.replace('ar = "${toolprefix}ar"', 'ar = "%s"' % ar_abs, 1)
     with open(build_gn, "w") as f:
         f.write(content)
+
+def strip_crel_cflags():
+    """Remove V8's experimental ELF CREL relocation cflag on Linux.
+
+    V8/Chromium enables `-Wa,--crel,--allow-experimental-crel` when
+    `is_linux && use_lld` (build/config/compiler/BUILD.gn). The full clang+lld
+    build links fine internally, but the resulting static library is later
+    linked by the consumer's cgo toolchain (GNU ld), which cannot read CREL
+    relocations and rejects the archive ("skipping incompatible ... libv8-*.a").
+
+    Keep use_lld=true (needed for V8's own host-tool linking) and simply drop the
+    CREL cflag so emitted objects use standard ELF relocations that GNU ld can
+    link. build/ is a gclient dep reset on every sync, so this must run post-sync
+    rather than live in deps/patches/.
+    """
+    if args.os != "linux":
+        return
+    build_gn = os.path.join(v8_path, "build", "config", "compiler", "BUILD.gn")
+    if not os.path.exists(build_gn):
+        return
+    with open(build_gn) as f:
+        content = f.read()
+    needle = '      cflags += [ "-Wa,--crel,--allow-experimental-crel" ]\n'
+    if needle in content:
+        content = content.replace(
+            needle,
+            '      # -Wa,--crel stripped by deps/build.py: GNU ld (consumer cgo\n'
+            '      # linker) cannot read experimental CREL relocations.\n')
+        with open(build_gn, "w") as f:
+            f.write(content)
 
 def update_last_change():
     out_path = os.path.join(v8_path, "build", "util", "LASTCHANGE")
@@ -337,24 +360,28 @@ def allocate_disjoint_files(ar_files, case_sensitive=True):
 
     return ar_file_groups
 
-def reset_toolchain_ar():
-    """Revert any cached edit to the Linux GCC toolchain's ar path.
+def reset_build_edits():
+    """Revert any cached edits build.py makes inside deps/v8/build.
 
-    A previous GCC build may have left build/toolchain/linux/BUILD.gn modified
-    (see fixup_gcc_toolchain_ar), and the CI caches deps/v8/build. gclient sync
-    refuses to run when a managed dependency has local modifications, so undo it
-    before syncing. No-op on a fresh checkout.
+    build.py mutates two gclient-managed files post-sync:
+      - toolchain/linux/BUILD.gn (fixup_gcc_toolchain_ar, GCC only)
+      - config/compiler/BUILD.gn (strip_crel_cflags, all Linux)
+    The CI caches deps/v8/build, and gclient sync refuses to run when a managed
+    dependency has local modifications, so undo both before syncing. No-op on a
+    fresh checkout.
     """
     build_dir = os.path.join(v8_path, "build")
-    build_gn = os.path.join(build_dir, "toolchain", "linux", "BUILD.gn")
-    if os.path.isdir(build_dir) and os.path.exists(build_gn):
-        subprocess.call(["git", "checkout", "--", "toolchain/linux/BUILD.gn"],
-                        cwd=build_dir)
+    if not os.path.isdir(build_dir):
+        return
+    for rel in ("toolchain/linux/BUILD.gn", "config/compiler/BUILD.gn"):
+        if os.path.exists(os.path.join(build_dir, rel)):
+            subprocess.call(["git", "checkout", "--", rel], cwd=build_dir)
 
 def main():
-    reset_toolchain_ar()
+    reset_build_edits()
     v8deps()
     fixup_gcc_toolchain_ar()
+    strip_crel_cflags()
     if is_windows:
         apply_mingw_patches()
 
