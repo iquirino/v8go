@@ -3,12 +3,12 @@ module github.com/iquirino/v8go
 go 1.19
 
 require (
-	github.com/iquirino/v8go/deps/android_amd64 v0.0.0-20260807033523-158fe175b635
-	github.com/iquirino/v8go/deps/android_arm64 v0.0.0-20260807033523-158fe175b635
-	github.com/iquirino/v8go/deps/darwin_amd64 v0.0.0-20260807033523-158fe175b635
-	github.com/iquirino/v8go/deps/darwin_arm64 v0.0.0-20260807033523-158fe175b635
-	github.com/iquirino/v8go/deps/linux_amd64 v0.0.0-20260807033523-158fe175b635
-	github.com/iquirino/v8go/deps/linux_arm64 v0.0.0-20260807033523-158fe175b635
+	github.com/iquirino/v8go/deps/android_amd64 v0.0.0-20260812025503-5b227fbcba41
+	github.com/iquirino/v8go/deps/android_arm64 v0.0.0-20260812025503-5b227fbcba41
+	github.com/iquirino/v8go/deps/darwin_amd64 v0.0.0-20260812025503-5b227fbcba41
+	github.com/iquirino/v8go/deps/darwin_arm64 v0.0.0-20260812025503-5b227fbcba41
+	github.com/iquirino/v8go/deps/linux_amd64 v0.0.0-20260812025503-5b227fbcba41
+	github.com/iquirino/v8go/deps/linux_arm64 v0.0.0-20260812025503-5b227fbcba41
 )
 
 // The deps/<os>_<arch> modules live in this repository. Resolve them from the
