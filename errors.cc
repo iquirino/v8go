@@ -1,12 +1,16 @@
 #include <stdlib.h>
 #include <sstream>
 
+#include "deps/include/v8-context.h"
 #include "deps/include/v8-exception.h"
+#include "deps/include/v8-external.h"
 #include "deps/include/v8-message.h"
 #include "deps/include/v8-primitive.h"
 
+#include "context.h"
 #include "errors.h"
 #include "utils.h"
+#include "value.h"
 
 using namespace v8;
 
@@ -47,6 +51,21 @@ RtnError ExceptionError(TryCatch& try_catch, Isolate* iso, Local<Context> ctx) {
   if (try_catch.StackTrace(ctx).ToLocal(&mstack)) {
     String::Utf8Value stack(iso, mstack);
     rtn.stack = CopyString(stack);
+  }
+
+  // Track the exception value in the context so it's freed on context close.
+  if (!exception.IsEmpty() && !ctx.IsEmpty()) {
+    Local<Data> embedder_data = ctx->GetEmbedderDataV2(2);
+    if (!embedder_data.IsEmpty() && embedder_data->IsValue()) {
+      Local<Value> embedder = Local<Value>::Cast(embedder_data);
+      if (embedder->IsExternal()) {
+        m_ctx* m_context = (m_ctx*)embedder.As<External>()->Value(
+            kExternalPointerTypeTagDefault);
+        if (m_context != nullptr) {
+          rtn.exception_value = track_value(m_context, exception);
+        }
+      }
+    }
   }
 
   return rtn;

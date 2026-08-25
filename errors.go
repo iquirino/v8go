@@ -32,6 +32,9 @@ func newJSError(rtnErr C.RtnError) error {
 		Location:   C.GoString(rtnErr.location),
 		StackTrace: C.GoString(rtnErr.stack),
 	}
+	if rtnErr.exception_value != nil {
+		err.Value = &Value{ptr: rtnErr.exception_value}
+	}
 	C.free(unsafe.Pointer(rtnErr.msg))
 	C.free(unsafe.Pointer(rtnErr.location))
 	C.free(unsafe.Pointer(rtnErr.stack))
