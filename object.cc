@@ -1,5 +1,12 @@
 #include "object.h"
+#include <cstring>
+#include <memory>
+#include "context-macros.h"
+#include "deps/include/v8-container.h"
+#include "deps/include/v8-date.h"
 #include "deps/include/v8-object.h"
+#include "deps/include/v8-regexp.h"
+#include "deps/include/v8-typed-array.h"
 #include "isolate-macros.h"
 #include "utils.h"
 #include "value-macros.h"
@@ -193,4 +200,234 @@ void ObjectSetPrototype(ValuePtr ptr, ValuePtr proto_ptr) {
   LOCAL_OBJECT(ptr);
   // Local<Context> local_ctx = ctx_ptr->ptr.Get(iso);
   obj->SetPrototype(local_ctx, proto_ptr->ptr.Get(iso)).Check();
+}
+
+/********** Array **********/
+
+ValuePtr NewArray(ContextPtr ctx, int length) {
+  LOCAL_CONTEXT(ctx);
+  Local<Array> arr = Array::New(iso, length);
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, arr);
+  return tracked_value(ctx, val);
+}
+
+int ArrayLength(ValuePtr ptr) {
+  LOCAL_VALUE_READONLY(ptr);
+  Local<Array> arr = value.As<Array>();
+  return arr->Length();
+}
+
+RtnValue ObjectGetPropertyNames(ValuePtr ptr) {
+  LOCAL_OBJECT(ptr);
+  RtnValue rtn = {};
+  Local<Array> names;
+  if (!obj->GetPropertyNames(local_ctx).ToLocal(&names)) {
+    rtn.error = ExceptionError(try_catch, iso, local_ctx);
+    return rtn;
+  }
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, names);
+  rtn.value = tracked_value(ctx, val);
+  return rtn;
+}
+
+RtnValue ObjectGetOwnPropertyNames(ValuePtr ptr) {
+  LOCAL_OBJECT(ptr);
+  RtnValue rtn = {};
+  Local<Array> names;
+  if (!obj->GetOwnPropertyNames(local_ctx).ToLocal(&names)) {
+    rtn.error = ExceptionError(try_catch, iso, local_ctx);
+    return rtn;
+  }
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, names);
+  rtn.value = tracked_value(ctx, val);
+  return rtn;
+}
+
+int ObjectDefineProperty(ValuePtr ptr, const char* key, ValuePtr val_ptr, int attributes) {
+  LOCAL_OBJECT(ptr);
+  Local<String> key_val =
+      String::NewFromUtf8(iso, key, NewStringType::kNormal).ToLocalChecked();
+  Maybe<bool> result = obj->DefineOwnProperty(
+      local_ctx, key_val, val_ptr->ptr.Get(iso), (PropertyAttribute)attributes);
+  if (result.IsNothing()) {
+    return 0;
+  }
+  return result.ToChecked() ? 1 : 0;
+}
+
+ValuePtr NewDate(ContextPtr ctx, double ms) {
+  LOCAL_CONTEXT(ctx);
+  Local<Value> date;
+  if (!Date::New(local_ctx, ms).ToLocal(&date)) {
+    return nullptr;
+  }
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, date);
+  return tracked_value(ctx, val);
+}
+
+double DateValueOf(ValuePtr ptr) {
+  LOCAL_VALUE_READONLY(ptr);
+  Local<Date> date = value.As<Date>();
+  return date->ValueOf();
+}
+
+/********** RegExp **********/
+
+ValuePtr NewRegExp(ContextPtr ctx, const char* pattern, int pattern_len, int flags) {
+  LOCAL_CONTEXT(ctx);
+  Local<String> pat;
+  if (!String::NewFromUtf8(iso, pattern, NewStringType::kNormal, pattern_len).ToLocal(&pat)) {
+    return nullptr;
+  }
+  Local<RegExp> re;
+  if (!RegExp::New(local_ctx, pat, static_cast<RegExp::Flags>(flags)).ToLocal(&re)) {
+    return nullptr;
+  }
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, re);
+  return tracked_value(ctx, val);
+}
+
+/********** Map **********/
+
+ValuePtr NewMap(ContextPtr ctx) {
+  LOCAL_CONTEXT(ctx);
+  Local<Map> map = Map::New(iso);
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, map);
+  return tracked_value(ctx, val);
+}
+
+RtnValue MapGet(ValuePtr ptr, ValuePtr key) {
+  LOCAL_VALUE(ptr);
+  Local<Map> map = value.As<Map>();
+  RtnValue rtn = {};
+  Local<Value> result;
+  if (!map->Get(local_ctx, key->ptr.Get(iso)).ToLocal(&result)) {
+    rtn.error = ExceptionError(try_catch, iso, local_ctx);
+    return rtn;
+  }
+  m_value* new_val = new m_value;
+  new_val->id = 0;
+  new_val->iso = iso;
+  new_val->ctx = ctx;
+  new_val->ptr = Global<Value>(iso, result);
+  rtn.value = tracked_value(ctx, new_val);
+  return rtn;
+}
+
+void MapSet(ValuePtr ptr, ValuePtr key, ValuePtr val_ptr) {
+  LOCAL_VALUE(ptr);
+  Local<Map> map = value.As<Map>();
+  map->Set(local_ctx, key->ptr.Get(iso), val_ptr->ptr.Get(iso)).ToLocalChecked();
+}
+
+int MapHas(ValuePtr ptr, ValuePtr key) {
+  LOCAL_VALUE(ptr);
+  Local<Map> map = value.As<Map>();
+  return map->Has(local_ctx, key->ptr.Get(iso)).ToChecked() ? 1 : 0;
+}
+
+int MapDelete(ValuePtr ptr, ValuePtr key) {
+  LOCAL_VALUE(ptr);
+  Local<Map> map = value.As<Map>();
+  return map->Delete(local_ctx, key->ptr.Get(iso)).ToChecked() ? 1 : 0;
+}
+
+int MapSize(ValuePtr ptr) {
+  LOCAL_VALUE_READONLY(ptr);
+  Local<Map> map = value.As<Map>();
+  return map->Size();
+}
+
+/********** Set **********/
+
+ValuePtr NewSet(ContextPtr ctx) {
+  LOCAL_CONTEXT(ctx);
+  Local<Set> set = Set::New(iso);
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, set);
+  return tracked_value(ctx, val);
+}
+
+void SetAdd(ValuePtr ptr, ValuePtr val_ptr) {
+  LOCAL_VALUE(ptr);
+  Local<Set> set = value.As<Set>();
+  set->Add(local_ctx, val_ptr->ptr.Get(iso)).ToLocalChecked();
+}
+
+int SetHas(ValuePtr ptr, ValuePtr val_ptr) {
+  LOCAL_VALUE(ptr);
+  Local<Set> set = value.As<Set>();
+  return set->Has(local_ctx, val_ptr->ptr.Get(iso)).ToChecked() ? 1 : 0;
+}
+
+int SetDelete(ValuePtr ptr, ValuePtr val_ptr) {
+  LOCAL_VALUE(ptr);
+  Local<Set> set = value.As<Set>();
+  return set->Delete(local_ctx, val_ptr->ptr.Get(iso)).ToChecked() ? 1 : 0;
+}
+
+int SetSize(ValuePtr ptr) {
+  LOCAL_VALUE_READONLY(ptr);
+  Local<Set> set = value.As<Set>();
+  return set->Size();
+}
+
+/********** TypedArray **********/
+
+ValuePtr NewArrayBufferFromBytes(ContextPtr ctx, const void* data, int length) {
+  LOCAL_CONTEXT(ctx);
+  std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(iso, length);
+  if (data != nullptr && length > 0) {
+    memcpy(bs->Data(), data, length);
+  }
+  Local<ArrayBuffer> ab = ArrayBuffer::New(iso, std::move(bs));
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, ab);
+  return tracked_value(ctx, val);
+}
+
+ValuePtr NewUint8ArrayFromBytes(ContextPtr ctx, const void* data, int length) {
+  LOCAL_CONTEXT(ctx);
+  std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(iso, length);
+  if (data != nullptr && length > 0) {
+    memcpy(bs->Data(), data, length);
+  }
+  Local<ArrayBuffer> ab = ArrayBuffer::New(iso, std::move(bs));
+  Local<Uint8Array> arr = Uint8Array::New(ab, 0, length);
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, arr);
+  return tracked_value(ctx, val);
 }

@@ -6,6 +6,9 @@ using namespace v8;
 char* CopyString(std::string str) {
   int len = str.length();
   char* mem = (char*)malloc(len + 1);
+  if (mem == nullptr) {
+    return nullptr;
+  }
   memcpy(mem, str.data(), len);
   mem[len] = 0;
   return mem;

@@ -30,7 +30,7 @@ func CompileModule(iso *Isolate, source, origin string) (*Module, error) {
 	cOrigin := C.CString(origin)
 	defer C.free(unsafe.Pointer(cSource))
 	defer C.free(unsafe.Pointer(cOrigin))
-	ptr := C.ScriptCompilerCompileModule(iso.ptr, cSource, cOrigin)
+	ptr := C.ScriptCompilerCompileModule(iso.ptr, cSource, C.int(len(source)), cOrigin, C.int(len(origin)))
 	if ptr == nil {
 		return nil, fmt.Errorf("Error compiling module: %s", origin)
 	}

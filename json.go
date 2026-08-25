@@ -21,7 +21,7 @@ func JSONParse(ctx *Context, str string) (*Value, error) {
 	cstr := C.CString(str)
 	defer C.free(unsafe.Pointer(cstr))
 
-	rtn := C.JSONParse(ctx.ptr, cstr)
+	rtn := C.JSONParse(ctx.ptr, cstr, C.int(len(str)))
 	return valueResult(ctx, rtn)
 }
 

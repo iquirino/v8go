@@ -2,6 +2,7 @@
 #include "deps/include/v8-external.h"
 #include "deps/include/v8-initialization.h"
 #include "deps/include/v8-locker.h"
+#include "deps/include/v8-microtask-queue.h"
 #include "deps/include/v8-platform.h"
 #include "deps/include/v8-promise.h"
 
@@ -75,6 +76,11 @@ IsolatePtr NewIsolate(IsolateConstraintsPtr constraints) {
 void IsolatePerformMicrotaskCheckpoint(IsolatePtr iso) {
   ISOLATE_SCOPE(iso)
   iso->PerformMicrotaskCheckpoint();
+}
+
+void IsolateSetMicrotasksPolicy(IsolatePtr iso, int policy) {
+  ISOLATE_SCOPE(iso)
+  iso->SetMicrotasksPolicy(static_cast<MicrotasksPolicy>(policy));
 }
 
 void IsolateDispose(IsolatePtr iso) {

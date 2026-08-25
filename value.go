@@ -662,6 +662,24 @@ func (v *Value) AsFunction() (*Function, error) {
 	return &Function{v}, nil
 }
 
+// AsDate will cast the value to the Date type. If the value is not a Date
+// then an error is returned.
+func (v *Value) AsDate() (*Date, error) {
+	if !v.IsDate() {
+		return nil, errors.New("v8go: value is not a Date")
+	}
+	return &Date{&Object{v}}, nil
+}
+
+// AsArray will cast the value to the Array type. If the value is not an Array
+// then an error is returned.
+func (v *Value) AsArray() (*Array, error) {
+	if !v.IsArray() {
+		return nil, errors.New("v8go: value is not an Array")
+	}
+	return &Array{&Object{v}}, nil
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 func (v *Value) MarshalJSON() ([]byte, error) {
 	jsonStr, err := JSONStringify(nil, v)
@@ -685,6 +703,25 @@ func (v *Value) SharedArrayBufferGetContents() ([]byte, func(), error) {
 	byte_size := C.BackingStoreByteLength(backingStore)
 	byte_slice := unsafe.Slice(byte_ptr, byte_size)
 
+	return byte_slice, release, nil
+}
+
+// ArrayBufferGetContents returns the contents of an ArrayBuffer as a byte slice.
+// The returned slice is backed by V8's memory — do not use after calling release.
+func (v *Value) ArrayBufferGetContents() ([]byte, func(), error) {
+	if !v.IsArrayBuffer() {
+		return nil, nil, errors.New("v8go: value is not an ArrayBuffer")
+	}
+	backingStore := C.ArrayBufferGetBackingStore(v.ptr)
+	release := func() {
+		C.BackingStoreRelease(backingStore)
+	}
+	byte_ptr := (*byte)(unsafe.Pointer(C.BackingStoreData(backingStore)))
+	byte_size := C.BackingStoreByteLength(backingStore)
+	if byte_size == 0 {
+		return nil, release, nil
+	}
+	byte_slice := unsafe.Slice(byte_ptr, byte_size)
 	return byte_slice, release, nil
 }
 

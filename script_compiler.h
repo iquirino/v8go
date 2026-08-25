@@ -36,12 +36,16 @@ extern const int ScriptCompilerEagerCompile;
 
 extern RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso_ptr,
                                                     const char* source,
+                                                    int source_len,
                                                     const char* origin,
+                                                    int origin_len,
                                                     CompileOptions options);
 
 extern m_module* ScriptCompilerCompileModule(v8Isolate* iso,
                                              const char* source,
-                                             const char* origin);
+                                             int source_len,
+                                             const char* origin,
+                                             int origin_len);
 
 #ifdef __cplusplus
 }

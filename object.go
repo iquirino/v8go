@@ -6,6 +6,7 @@ package v8go
 
 // #include <stdlib.h>
 // #include "object.h"
+// #include "symbol.h"
 import "C"
 import (
 	"fmt"
@@ -219,4 +220,68 @@ func (o *Object) GetPrototype() *Object {
 // deprecated.
 func (o *Object) SetPrototype(proto *Object) {
 	C.ObjectSetPrototype(o.ptr, proto.ptr)
+}
+
+// GetPropertyNames returns an array of property names (including prototype chain).
+func (o *Object) GetPropertyNames() (*Array, error) {
+	rtn := C.ObjectGetPropertyNames(o.ptr)
+	val, err := valueResult(o.ctx, rtn)
+	if err != nil {
+		return nil, err
+	}
+	return &Array{&Object{val}}, nil
+}
+
+// GetOwnPropertyNames returns an array of own property names (not from prototype).
+func (o *Object) GetOwnPropertyNames() (*Array, error) {
+	rtn := C.ObjectGetOwnPropertyNames(o.ptr)
+	val, err := valueResult(o.ctx, rtn)
+	if err != nil {
+		return nil, err
+	}
+	return &Array{&Object{val}}, nil
+}
+
+// DefineOwnProperty defines an own property on this object with the given attributes.
+// Attributes can be combined with | (OR): None, ReadOnly, DontEnum, DontDelete.
+func (o *Object) DefineOwnProperty(key string, val Valuer, attributes PropertyAttribute) bool {
+	cKey := C.CString(key)
+	defer C.free(unsafe.Pointer(cKey))
+	return C.ObjectDefineProperty(o.ptr, cKey, val.value().ptr, C.int(attributes)) != 0
+}
+
+// SetPrivate sets a private property on this object. Private properties are
+// invisible to JavaScript code — they cannot be accessed via
+// Object.getOwnPropertySymbols() or any other reflection API.
+func (o *Object) SetPrivate(key string, val interface{}) error {
+	value, err := coerceValue(o.ctx.iso, val)
+	if err != nil {
+		return err
+	}
+	ckey := C.CString(key)
+	defer C.free(unsafe.Pointer(ckey))
+	C.ObjectSetPrivate(o.ptr, ckey, C.int(len(key)), value.ptr)
+	return nil
+}
+
+// GetPrivate retrieves a private property from this object.
+func (o *Object) GetPrivate(key string) (*Value, error) {
+	ckey := C.CString(key)
+	defer C.free(unsafe.Pointer(ckey))
+	rtn := C.ObjectGetPrivate(o.ptr, ckey, C.int(len(key)))
+	return valueResult(o.ctx, rtn)
+}
+
+// HasPrivate returns true if this object has the given private property.
+func (o *Object) HasPrivate(key string) bool {
+	ckey := C.CString(key)
+	defer C.free(unsafe.Pointer(ckey))
+	return C.ObjectHasPrivate(o.ptr, ckey, C.int(len(key))) != 0
+}
+
+// DeletePrivate removes a private property from this object.
+func (o *Object) DeletePrivate(key string) bool {
+	ckey := C.CString(key)
+	defer C.free(unsafe.Pointer(ckey))
+	return C.ObjectDeletePrivate(o.ptr, ckey, C.int(len(key))) != 0
 }

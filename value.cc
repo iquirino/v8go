@@ -22,6 +22,10 @@ RtnString StringToRtnString(v8::Isolate* iso, Local<String> val) {
   RtnString res = {};
   res.length = val->Utf8Length(iso);
   res.data = static_cast<char*>(malloc(res.length));
+  if (res.data == nullptr) {
+    res.length = 0;
+    return res;
+  }
   val->WriteUtf8(iso, res.data, res.length);
   return res;
 }
@@ -240,6 +244,9 @@ const uint32_t* ValueToArrayIndex(ValuePtr ptr) {
   }
 
   uint32_t* idx = (uint32_t*)malloc(sizeof(uint32_t));
+  if (idx == nullptr) {
+    return nullptr;
+  }
   *idx = array_index->Value();
   return idx;
 }
@@ -308,6 +315,9 @@ ValueBigInt ValueToBigInt(ValuePtr ptr) {
   int word_count = bint->WordCount();
   int sign_bit = 0;
   uint64_t* words = (uint64_t*)malloc(sizeof(uint64_t) * word_count);
+  if (words == nullptr) {
+    return {nullptr, 0};
+  }
   bint->ToWordsArray(&sign_bit, &word_count, words);
   ValueBigInt rtn = {words, word_count, sign_bit};
   return rtn;

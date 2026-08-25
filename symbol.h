@@ -1,6 +1,8 @@
 #ifndef V8GO_SYMBOL_H
 #define V8GO_SYMBOL_H
 
+#include "errors.h"
+
 #ifdef __cplusplus
 namespace v8 {
 class Isolate;
@@ -31,6 +33,11 @@ typedef enum {
 
 ValuePtr BuiltinSymbol(IsolatePtr iso_ptr, SymbolIndex idx);
 const char* SymbolDescription(ValuePtr ptr);
+
+extern int ObjectSetPrivate(ValuePtr ptr, const char* key, int key_len, ValuePtr val_ptr);
+extern RtnValue ObjectGetPrivate(ValuePtr ptr, const char* key, int key_len);
+extern int ObjectHasPrivate(ValuePtr ptr, const char* key, int key_len);
+extern int ObjectDeletePrivate(ValuePtr ptr, const char* key, int key_len);
 
 #ifdef __cplusplus
 }
