@@ -27,9 +27,17 @@ jobs:
         - stable
         include:
         - os: linux
+          arch: amd64
+          platform: ubuntu-latest
+        - os: linux
+          arch: arm64
           platform: ubuntu-latest
         - os: darwin
+          arch: arm64
           platform: macos-latest
+        - os: darwin
+          arch: amd64
+          platform: macos-13
     runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout
