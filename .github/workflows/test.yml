@@ -38,9 +38,6 @@ jobs:
         - os: darwin
           arch: arm64
           platform: macos-latest
-        - os: darwin
-          arch: amd64
-          platform: macos-13
     runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout
