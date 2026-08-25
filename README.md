@@ -581,7 +581,7 @@ V8 is built with these GN flags (see `deps/build.py`):
 
 ---
 
-## v2 — Breaking Changes
+## v1 — Breaking Changes
 
 These methods changed signatures to return errors instead of panicking:
 
@@ -608,7 +608,7 @@ _, err = prom.Then(callback)
 
 ---
 
-## v2 — New Features
+## v1 — New Features
 
 | Feature | Description |
 |---------|-------------|
