@@ -32,10 +32,6 @@ func newJSError(rtnErr C.RtnError) error {
 		Location:   C.GoString(rtnErr.location),
 		StackTrace: C.GoString(rtnErr.stack),
 	}
-	if rtnErr.exception_value != nil {
-		err.Value = &Value{ptr: rtnErr.exception_value}
-	}
-	// Free the C strings but NOT the exception_value (now owned by Go)
 	C.free(unsafe.Pointer(rtnErr.msg))
 	C.free(unsafe.Pointer(rtnErr.location))
 	C.free(unsafe.Pointer(rtnErr.stack))

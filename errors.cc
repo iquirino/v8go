@@ -3,12 +3,10 @@
 
 #include "deps/include/v8-exception.h"
 #include "deps/include/v8-message.h"
-#include "deps/include/v8-persistent-handle.h"
 #include "deps/include/v8-primitive.h"
 
 #include "errors.h"
 #include "utils.h"
-#include "value.h"
 
 using namespace v8;
 
@@ -27,16 +25,6 @@ RtnError ExceptionError(TryCatch& try_catch, Isolate* iso, Local<Context> ctx) {
 
   String::Utf8Value exceptionStr(iso, exception);
   rtn.msg = CopyString(exceptionStr);
-
-  // Store the exception value for Go-side inspection/rethrowing
-  if (!exception.IsEmpty()) {
-    m_value* exc_val = new m_value;
-    exc_val->id = 0;
-    exc_val->iso = iso;
-    exc_val->ctx = nullptr;
-    exc_val->ptr = Global<Value>(iso, exception);
-    rtn.exception_value = exc_val;
-  }
 
   Local<Message> msg = try_catch.Message();
   if (!msg.IsEmpty()) {
@@ -68,8 +56,4 @@ void ErrorRelease(RtnError err) {
   free(err.msg);
   free(err.location);
   free(err.stack);
-  if (err.exception_value != nullptr) {
-    err.exception_value->ptr.Reset();
-    delete err.exception_value;
-  }
 }
