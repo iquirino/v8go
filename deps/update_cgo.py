@@ -56,6 +56,7 @@ package {os}_{arch}
 // #cgo LDFLAGS: {ldflags}
 // #cgo libgcompat LDFLAGS: -lgcompat
 // #cgo linux LDFLAGS: -ldl -latomic
+// #cgo darwin LDFLAGS: -framework CoreFoundation
 import "C"
 """
 
