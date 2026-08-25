@@ -1,345 +1,657 @@
-# Execute JavaScript from Go
+# v8go — Execute JavaScript from Go
 
-<a href="https://github.com/tommie/v8go/releases"><img src="https://img.shields.io/github/v/release/tommie/v8go" alt="Github release"></a>
-[![Go Report Card](https://goreportcard.com/badge/github.com/tommie/v8go)](https://goreportcard.com/report/github.com/tommie/v8go)
-[![Go Reference](https://pkg.go.dev/badge/github.com/tommie/v8go.svg)](https://pkg.go.dev/github.com/tommie/v8go)
-[![Test](https://github.com/tommie/v8go/actions/workflows/test.yml/badge.svg)](https://github.com/tommie/v8go/actions/workflows/test.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/iquirino/v8go.svg)](https://pkg.go.dev/github.com/iquirino/v8go)
 
-<img src="gopher.jpg" width="200px" alt="V8 Gopher based on original artwork from the amazing Renee French" style="float:right" />
+A Go binding to the V8 JavaScript engine. Run JavaScript, expose Go functions to JS, and exchange data between Go and V8 with zero serialization overhead.
 
-## Relation to `rogchap.com/v8go`
+## Install
 
-This is a fork of https://github.com/rogchap/v8go at v0.9.0.
-
-Major differences include
-
-* Android amd64/arm64 support.
-* Works with the new Chromium release dashboard (used to find what the stable version of V8 is).
-* Actually upgrades V8.
-  See https://github.com/rogchap/v8go/issues/399.
-* Splits the v8 static libraries to work around the [GitHub file size limit](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github#file-size-limits) of 100 MB.
-  The splitter doesn't care about dependencies, so binutils `ld` requires `--start-group` around them.
-  Notably, the XCode `ld` doesn't care about ordering.
-* [Support](https://github.com/rogchap/v8go/pull/194) for JS Symbols.
-* [Support](https://github.com/rogchap/v8go/pull/195) for native exceptions and `FunctionCallback` returning an error.
-* A rebuilt build pipeline, being more consistent.
-  * We now build everything at once.
-    Originally, the build pipeline left the master branch inconsistent between header files and libraries of individual architectures.
-  * The library builder commits directly, without a PR, avoiding PR blow-up.
-  * Using ccache, based on https://github.com/kuoruan/libv8.
-
-## Usage
-
-```go
-import v8 "github.com/tommie/v8go"
+```bash
+go get github.com/iquirino/v8go
 ```
 
-### Running a script
+Prebuilt V8 static libraries are included for Linux and macOS (amd64/arm64) and Android.
+
+---
+
+## Quick Start
 
 ```go
-ctx := v8.NewContext() // creates a new V8 context with a new Isolate aka VM
-ctx.RunScript("const add = (a, b) => a + b", "math.js") // executes a script on the global context
-ctx.RunScript("const result = add(3, 4)", "main.js") // any functions previously added to the context can be called
-val, _ := ctx.RunScript("result", "value.js") // return a value in JavaScript back to Go
-fmt.Printf("addition result: %s", val)
-```
+package main
 
-### One VM, many contexts
+import (
+    "fmt"
+    v8 "github.com/iquirino/v8go"
+)
 
-```go
-iso := v8.NewIsolate() // creates a new JavaScript VM
-ctx1 := v8.NewContext(iso) // new context within the VM
-ctx1.RunScript("const multiply = (a, b) => a * b", "math.js")
+func main() {
+    ctx := v8.NewContext()
+    defer ctx.Isolate().Dispose()
+    defer ctx.Close()
 
-ctx2 := v8.NewContext(iso) // another context on the same VM
-if _, err := ctx2.RunScript("multiply(3, 4)", "main.js"); err != nil {
-  // this will error as multiply is not defined in this context
+    val, err := ctx.RunScript(`"Hello from V8!"`, "hello.js")
+    if err != nil {
+        panic(err)
+    }
+    fmt.Println(val.String()) // Hello from V8!
 }
 ```
 
-### JavaScript function with Go callback
+---
+
+## Core Concepts
+
+### Isolate (VM instance)
+
+> **Think of an Isolate as a completely independent JavaScript universe.** It has its own heap, garbage collector, and JIT compiler. Two Isolates share nothing — they can't see each other's variables, objects, or functions. This is the strongest isolation boundary V8 offers. One Isolate = one thread at a time (V8 is not thread-safe within a single Isolate).
 
 ```go
-iso := v8.NewIsolate() // create a new VM
-// a template that represents a JS function
-printfn := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
-    fmt.Printf("%v", info.Args()) // when the JS function is called this Go callback will execute
-    return nil // you can return a value back to the JS caller if required
+iso := v8.NewIsolate()
+defer iso.Dispose()
+```
+
+### Context (execution environment)
+
+> **A Context is a global scope within an Isolate.** Think of it as a separate "tab" — it has its own `global` object, its own variables, but shares the underlying VM (JIT cache, GC) with other Contexts in the same Isolate. Contexts are cheap to create compared to Isolates.
+
+```go
+ctx := v8.NewContext(iso)
+defer ctx.Close()
+```
+
+### One Isolate, many Contexts
+
+> Use this when you need multiple independent scopes but want to save memory. Each Context gets its own global object, so variables defined in one are invisible to another.
+
+```go
+iso := v8.NewIsolate()
+defer iso.Dispose()
+
+ctx1 := v8.NewContext(iso)
+ctx1.RunScript("var x = 1", "")
+
+ctx2 := v8.NewContext(iso) // separate global scope
+_, err := ctx2.RunScript("x", "") // ReferenceError: x is not defined
+```
+
+---
+
+## Lifecycle & Cleanup
+
+> **Critical:** V8 resources are NOT garbage collected by Go. You MUST explicitly dispose them or they'll leak.
+
+```go
+// Always follow this pattern:
+iso := v8.NewIsolate()
+defer iso.Dispose()       // frees the entire VM + heap
+
+ctx := v8.NewContext(iso)
+defer ctx.Close()         // frees the context + all tracked values
+
+// If you created a context without an explicit isolate:
+ctx := v8.NewContext()
+defer ctx.Isolate().Dispose() // don't forget the implicit isolate!
+defer ctx.Close()
+```
+
+**Order matters:** Close contexts before disposing their isolate.
+
+---
+
+## Running Scripts
+
+### Basic execution
+
+```go
+val, err := ctx.RunScript(`1 + 2`, "math.js")
+fmt.Println(val.String()) // "3"
+```
+
+### 🆕 Execution with timeout
+
+```go
+val, err := ctx.RunScriptWithTimeout(`while(true){}`, "loop.js", 100*time.Millisecond)
+if errors.Is(err, v8.ErrScriptTimeout) {
+    fmt.Println("Script timed out")
+}
+```
+
+### Terminate long-running scripts manually
+
+```go
+go func() {
+    time.Sleep(200 * time.Millisecond)
+    iso.TerminateExecution()
+}()
+val, err := ctx.RunScript(longScript, "slow.js")
+// err: "ExecutionTerminated: script execution has been terminated"
+```
+
+---
+
+## Values
+
+### Creating values from Go
+
+```go
+iso := v8.NewIsolate()
+
+strVal, _ := v8.NewValue(iso, "hello")         // string
+intVal, _ := v8.NewValue(iso, int32(42))        // int32
+numVal, _ := v8.NewValue(iso, float64(3.14))    // float64
+boolVal, _ := v8.NewValue(iso, true)            // bool
+bigVal, _ := v8.NewValue(iso, big.NewInt(9999)) // BigInt
+```
+
+### Type checking
+
+```go
+val.IsString()    // true/false
+val.IsNumber()
+val.IsObject()
+val.IsArray()
+val.IsPromise()
+val.IsDate()
+val.IsRegExp()
+// ... 40+ type checks available
+```
+
+### 🆕 Error-aware string conversion
+
+```go
+s, err := val.StringErr() // returns error if conversion fails (e.g., Symbol coercion)
+s := val.String()         // same but returns "" on failure (for fmt.Stringer compat)
+```
+
+---
+
+## Objects
+
+### Get and set properties
+
+```go
+obj := ctx.Global()
+obj.Set("version", "2.0.0")
+
+val, _ := obj.Get("version")
+fmt.Println(val.String()) // "2.0.0"
+
+obj.Has("version")    // true
+obj.Delete("version") // removes it
+```
+
+### 🆕 Property enumeration
+
+```go
+val, _ := ctx.RunScript(`({name: "Alice", age: 30})`, "")
+obj, _ := val.AsObject()
+
+names, _ := obj.GetPropertyNames()       // includes prototype chain
+ownNames, _ := obj.GetOwnPropertyNames() // own only
+
+for i := 0; i < ownNames.Length(); i++ {
+    key, _ := ownNames.GetIdx(uint32(i))
+    fmt.Println(key.String())
+}
+```
+
+### 🆕 Define properties with attributes
+
+```go
+propVal, _ := v8.NewValue(iso, "immutable")
+obj.DefineOwnProperty("locked", propVal, v8.ReadOnly|v8.DontDelete)
+```
+
+### 🆕 Private properties (invisible to JS)
+
+```go
+obj.SetPrivate("internal_id", "abc123")
+val, _ := obj.GetPrivate("internal_id") // "abc123"
+obj.HasPrivate("internal_id")           // true
+
+// JS cannot see it:
+// Object.keys(obj)                    → doesn't include "internal_id"
+// Object.getOwnPropertySymbols(obj)   → doesn't include it either
+```
+
+---
+
+## 🆕 Arrays
+
+```go
+arr, _ := v8.NewArray(ctx, 0)
+
+v1, _ := v8.NewValue(iso, "hello")
+v2, _ := v8.NewValue(iso, "world")
+
+arr.Push(v1, v2)          // returns new length: 2
+arr.Length()              // 2
+val, _ := arr.Get(0)     // "hello"
+arr.Pop()                 // removes and returns "world"
+arr.Shift()               // removes and returns "hello"
+arr.Unshift(v1)           // prepend, returns new length
+arr.Includes(v1)          // true
+arr.IndexOf(v1)           // 0
+
+// Cast from Value:
+val, _ = ctx.RunScript(`[1, 2, 3]`, "")
+arr, _ = val.AsArray()
+```
+
+---
+
+## 🆕 Dates
+
+```go
+date, _ := v8.NewDate(ctx, time.Now())
+
+t := date.Time()                // Go time.Time
+iso, _ := date.ToISOString()    // "2024-06-15T10:30:00.000Z"
+year, _ := date.GetFullYear()   // 2024
+month, _ := date.GetMonth()     // 5 (0-indexed)
+ms, _ := date.GetTime()         // Unix milliseconds
+
+// Cast from Value:
+val, _ = ctx.RunScript(`new Date()`, "")
+d, _ := val.AsDate()
+```
+
+---
+
+## 🆕 Map and Set
+
+### Map
+
+```go
+m, _ := v8.NewMap(ctx)
+
+key, _ := v8.NewValue(iso, "name")
+val, _ := v8.NewValue(iso, "Alice")
+
+m.MapSet(key, val)
+m.MapSize()          // 1
+m.MapHas(key)        // true
+got, _ := m.MapGet(key) // "Alice"
+m.MapDelete(key)
+```
+
+### Set
+
+```go
+s, _ := v8.NewSet(ctx)
+
+val, _ := v8.NewValue(iso, "item")
+s.SetAdd(val)
+s.SetSize()    // 1
+s.SetHas(val)  // true
+s.SetDelete(val)
+```
+
+---
+
+## 🆕 RegExp
+
+```go
+re, _ := v8.NewRegExp(ctx, `\d+`, v8.RegExpGlobal|v8.RegExpIgnoreCase)
+
+src, _ := re.Source() // `\d+`
+flags, _ := re.Flags() // "gi"
+
+str, _ := v8.NewValue(iso, "abc 123 def")
+matched, _ := re.Test(str) // true
+```
+
+---
+
+## 🆕 Binary Data (ArrayBuffer / TypedArray)
+
+> **When to use this instead of JSON?** If you're passing binary data (images, protobuf, crypto buffers) or large numeric arrays between Go and JS, ArrayBuffers avoid the serialize→parse round-trip entirely. The byte slice you get back points directly into V8's heap — zero copy. For structured objects (maps, nested structs), JSON is still the simplest path.
+
+### Create from Go bytes
+
+```go
+data := []byte{0x48, 0x65, 0x6C, 0x6C, 0x6F}
+
+// ArrayBuffer
+buf, _ := v8.NewArrayBufferFromBytes(ctx, data)
+
+// Uint8Array (JS can index it directly: arr[0], arr[1], etc.)
+arr, _ := v8.NewUint8ArrayFromBytes(ctx, data)
+```
+
+### Read V8 buffer into Go
+
+```go
+val, _ := ctx.RunScript(`new ArrayBuffer(1024)`, "")
+bytes, release, _ := val.ArrayBufferGetContents()
+defer release()
+// bytes is a []byte backed by V8 memory — zero copy!
+
+// SharedArrayBuffer works too:
+val2, _ := ctx.RunScript(`new SharedArrayBuffer(1024)`, "")
+bytes2, release2, _ := val2.SharedArrayBufferGetContents()
+defer release2()
+```
+
+---
+
+## Functions
+
+### Go function exposed to JS
+
+```go
+printFn := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
+    fmt.Println(info.Args()[0].String())
+    return nil
 })
-global := v8.NewObjectTemplate(iso) // a template that represents a JS Object
-global.Set("print", printfn) // sets the "print" property of the Object to our function
-ctx := v8.NewContext(iso, global) // new Context with the global Object set to our object template
-ctx.RunScript("print('foo')", "print.js") // will execute the Go callback with a single argunent 'foo'
+global := v8.NewObjectTemplate(iso)
+global.Set("print", printFn)
+
+ctx := v8.NewContext(iso, global)
+ctx.RunScript(`print("Hello from JS!")`, "")
 ```
 
-### Update a JavaScript object from Go
+### Go function with error handling
 
 ```go
-ctx := v8.NewContext() // new context with a default VM
-obj := ctx.Global() // get the global object from the context
-obj.Set("version", "v1.0.0") // set the property "version" on the object
-val, _ := ctx.RunScript("version", "version.js") // global object will have the property set within the JS VM
-fmt.Printf("version: %s", val)
-
-if obj.Has("version") { // check if a property exists on the object
-    obj.Delete("version") // remove the property from the object
-}
+fn := v8.NewFunctionTemplateWithError(iso, func(info *v8.FunctionCallbackInfo) (*v8.Value, error) {
+    if len(info.Args()) == 0 {
+        return nil, fmt.Errorf("argument required")
+    }
+    return info.Args()[0], nil
+})
+// If error is returned, it's thrown as a JS exception
 ```
+
+### 🆕 Get function from template (returns error instead of panicking)
+
+```go
+fn, err := tmpl.GetFunction(ctx)
+if err != nil {
+    // handle template instantiation error
+}
+result, err := fn.Call(v8.Undefined(iso), arg1, arg2)
+```
+
+---
+
+## Promises
+
+> **What are microtasks?** In a browser or Node.js, Promise callbacks (`.then`, `.catch`, `async/await` continuations) don't execute immediately — they go into a "microtask queue" that runs after the current script finishes. In v8go, there's no event loop running automatically. You must explicitly tell V8 to process the queue by calling `ctx.PerformMicrotaskCheckpoint()`. Without this call, your Promise callbacks will never fire.
+
+```go
+resolver, _ := v8.NewPromiseResolver(ctx)
+promise := resolver.GetPromise()
+
+// Resolve from Go:
+val, _ := v8.NewValue(iso, "done")
+resolver.Resolve(val)
+
+// IMPORTANT: Without this, .Then callbacks won't run!
+ctx.PerformMicrotaskCheckpoint()
+
+fmt.Println(promise.State())           // Fulfilled
+fmt.Println(promise.Result().String()) // "done"
+```
+
+### 🆕 Then/Catch (returns error instead of panicking)
+
+```go
+p, err := promise.Then(func(info *v8.FunctionCallbackInfo) *v8.Value {
+    fmt.Println("Resolved:", info.Args()[0].String())
+    return nil
+})
+if err != nil {
+    // handle error
+}
+ctx.PerformMicrotaskCheckpoint()
+```
+
+### 🆕 Microtask policy control
+
+> By default, V8 runs microtasks (Promise callbacks) automatically after each script completes. If you want full control — for example, to batch multiple operations before resolving promises — switch to explicit mode.
+
+```go
+// Explicit: YOU decide when promises resolve
+iso.SetMicrotasksPolicy(v8.MicrotasksExplicit)
+
+ctx.RunScript(`fetch('/api').then(r => console.log(r))`, "") // .then won't fire yet!
+// ... do other work ...
+ctx.PerformMicrotaskCheckpoint() // NOW all pending .then/.catch callbacks run
+
+// Auto (default): promises resolve immediately after each RunScript
+iso.SetMicrotasksPolicy(v8.MicrotasksAuto)
+```
+
+---
+
+## Error Handling
 
 ### JavaScript errors
 
 ```go
-val, err := ctx.RunScript(src, filename)
+_, err := ctx.RunScript(`throw new TypeError("oops")`, "err.js")
 if err != nil {
-  e := err.(*v8.JSError) // JavaScript errors will be returned as the JSError struct
-  fmt.Println(e.Message) // the message of the exception thrown
-  fmt.Println(e.Location) // the filename, line number and the column where the error occurred
-  fmt.Println(e.StackTrace) // the full stack trace of the error, if available
-
-  fmt.Printf("javascript error: %v", e) // will format the standard error message
-  fmt.Printf("javascript stack trace: %+v", e) // will format the full error stack trace
+    jsErr := err.(*v8.JSError)
+    fmt.Println(jsErr.Message)    // "TypeError: oops"
+    fmt.Println(jsErr.Location)   // "err.js:1:1"
+    fmt.Println(jsErr.StackTrace) // full stack trace
 }
 ```
 
-### Pre-compile context-independent scripts to speed-up execution times
-
-For scripts that are large or are repeatedly run in different contexts,
-it is beneficial to compile the script once and used the cached data from that
-compilation to avoid recompiling every time you want to run it.
+### 🆕 Exception value propagation
 
 ```go
-source := "const multiply = (a, b) => a * b"
-iso1 := v8.NewIsolate() // creates a new JavaScript VM
-ctx1 := v8.NewContext(iso1) // new context within the VM
-script1, _ := iso1.CompileUnboundScript(source, "math.js", v8.CompileOptions{}) // compile script to get cached data
-val, _ := script1.Run(ctx1)
+_, err := ctx.RunScript(`throw new TypeError("oops")`, "")
+jsErr := err.(*v8.JSError)
 
-cachedData := script1.CreateCodeCache()
+// Access the original V8 error object:
+fmt.Println(jsErr.Value.IsNativeError()) // true
+fmt.Println(jsErr.Value.String())        // "TypeError: oops"
 
-iso2 := v8.NewIsolate() // create a new JavaScript VM
-ctx2 := v8.NewContext(iso2) // new context within the VM
-
-script2, _ := iso2.CompileUnboundScript(source, "math.js", v8.CompileOptions{CachedData: cachedData}) // compile script in new isolate with cached data
-val, _ = script2.Run(ctx2)
+// Rethrow in a callback:
+iso.ThrowException(jsErr.Value)
 ```
-
-### Terminate long running scripts
-
-```go
-vals := make(chan *v8.Value, 1)
-errs := make(chan error, 1)
-
-go func() {
-    val, err := ctx.RunScript(script, "forever.js") // exec a long running script
-    if err != nil {
-        errs <- err
-        return
-    }
-    vals <- val
-}()
-
-select {
-case val := <- vals:
-    // success
-case err := <- errs:
-    // javascript error
-case <- time.After(200 * time.Milliseconds):
-    vm := ctx.Isolate() // get the Isolate from the context
-    vm.TerminateExecution() // terminate the execution
-    err := <- errs // will get a termination error back from the running script
-}
-```
-
-### Setting memory limits
-V8 supports setting a hard limit on Javascript memory usage.
-To do so, add a call to `WithResourceConstraints` to the `NewIsolate` invocation.
-If the limit is hit, this results in a call to `TerminateExecution` as shown above.
-
-```go
-vm := v8.NewIsolate(v8.WithResourceConstraints(8*1024*1024, 16*1024*1024))
-ctx := v8.NewContext(vm)
-val, err = ctx.RunScript(`
-    const data = [];
-    for (let i = 0; i < 1000 * 1000; i++) {
-        data.push("large data chunk ".repeat(1000));
-    }
-    data.length;
-  `, "memory-test.js")
-// err is 'ExecutionTerminated: script execution has been terminated'
-```
-
-### CPU Profiler
-
-```go
-func createProfile() {
-	iso := v8.NewIsolate()
-	ctx := v8.NewContext(iso)
-	cpuProfiler := v8.NewCPUProfiler(iso)
-
-	cpuProfiler.StartProfiling("my-profile")
-
-	ctx.RunScript(profileScript, "script.js") # this script is defined in cpuprofiler_test.go
-	val, _ := ctx.Global().Get("start")
-	fn, _ := val.AsFunction()
-	fn.Call(ctx.Global())
-
-	cpuProfile := cpuProfiler.StopProfiling("my-profile")
-
-	printTree("", cpuProfile.GetTopDownRoot()) # helper function to print the profile
-}
-
-func printTree(nest string, node *v8.CPUProfileNode) {
-	fmt.Printf("%s%s %s:%d:%d\n", nest, node.GetFunctionName(), node.GetScriptResourceName(), node.GetLineNumber(), node.GetColumnNumber())
-	count := node.GetChildrenCount()
-	if count == 0 {
-		return
-	}
-	nest = fmt.Sprintf("%s  ", nest)
-	for i := 0; i < count; i++ {
-		printTree(nest, node.GetChild(i))
-	}
-}
-
-// Output
-// (root) :0:0
-//   (program) :0:0
-//   start script.js:23:15
-//     foo script.js:15:13
-//       delay script.js:12:15
-//         loop script.js:1:14
-//       bar script.js:13:13
-//         delay script.js:12:15
-//           loop script.js:1:14
-//       baz script.js:14:13
-//         delay script.js:12:15
-//           loop script.js:1:14
-//   (garbage collector) :0:0
-```
-
-## Documentation
-
-Go Reference & more examples: https://pkg.go.dev/github.com/tommie/v8go
-
-### Support
-
-If you would like to ask questions about this library or want to keep up-to-date with the latest changes and releases,
-please join the [**#v8go**](https://gophers.slack.com/channels/v8go) channel on Gophers Slack. [Click here to join the Gophers Slack community!](https://invite.slack.golangbridge.org/)
-
-### Windows
-
-There used to be Windows binary support. For further information see, [rogchap PR #234](https://github.com/rogchap/v8go/pull/234).
-
-The v8go library would welcome contributions from anyone able to get an external windows
-build of the V8 library linking with v8go, using the version of V8 checked out in the
-`deps/v8` git submodule, and documentation of the process involved. This process will likely
-involve passing a linker flag when building v8go (e.g. using the `CGO_LDFLAGS` environment
-variable.
-
-## V8 Dependency
-
-See `deps/v8/` for the version of V8 we're currently on.
-In order to make `v8go` usable as a standard Go package, prebuilt static libraries of V8 are included for Linux and macOS. you *should not* require to build V8 yourself.
-
-## Project Goals
-
-To provide a high quality, idiomatic, Go binding to the [V8 C++ API](https://v8.github.io/api/head/index.html).
-
-The API should match the original API as closely as possible, but with an API that Gophers (Go enthusiasts) expect. For
-example: using multiple return values to return both result and error from a function, rather than throwing an
-exception.
-
-This project also aims to keep up-to-date with the latest (stable) release of V8.
-
-## License
-
-[![FOSSA Status](https://app.fossa.com/api/projects/custom%2B22862%2Fgit%40github.com%3Atommie%2Fv8go.git.svg?type=large)](https://app.fossa.com/projects/custom%2B22862%2Fgit%40github.com%3Atommie%2Fv8go.git?ref=badge_large)
-
-## Development
-
-### Recompile V8 with debug info and debug checks
-
-[Aside from data races, Go should be memory-safe](https://research.swtch.com/gorace) and v8go should preserve this property by adding the necessary checks to return an error or panic on these unsupported code paths. Release builds of v8go don't include debugging information for the V8 library since it significantly adds to the binary size, slows down compilation and shouldn't be needed by users of v8go. However, if a v8go bug causes a crash (e.g. during new feature development) then it can be helpful to build V8 with debugging information to get a C++ backtrace with line numbers. The following steps will not only do that, but also enable V8 debug checking, which can help with catching misuse of the V8 API.
-
-1) Make sure to clone the projects submodules (ie. the V8's `depot_tools` project): `git submodule update --init --recursive`
-1) Build the V8 binary for your OS: `deps/build.py --debug`. V8 is a large project, and building the binary can take up to 30 minutes.
-1) Build the executable to debug, using `go build` for commands or `go test -c` for tests. You may need to add the `-ldflags=-compressdwarf=false` option to disable debug information compression so this information can be read by the debugger (e.g. lldb that comes with Xcode v12.5.1, the latest Xcode released at the time of writing)
-1) Run the executable with a debugger (e.g. `lldb -- ./v8go.test -test.run TestThatIsCrashing`, `run` to start execution then use `bt` to print a bracktrace after it breaks on a crash), since backtraces printed by Go or V8 don't currently include line number information.
-
-### Upgrading the V8 binaries
-
-We have the [v8upgrade](https://github.com/tommie/v8go/.github/workflow/v8upgrade.yml) workflow.
-The workflow is triggered every day or manually.
-When run, it finds the current stable V8 version on https://chromiumdash.appspot.com/.
-If the new version is different from `deps/v8_hash`, it runs `v8build` and `release`.
-
-The [v8build](https://github.com/tommie/v8go/.github/workflow/v8build.yml) workflow upgrades V8 and builds the libraries.
-It is triggered by the `v8upgrade` workflow, or being run manually.
-Each architecture is a separate job, storing build artifacts that are picked up by the Commit job.
-This job updates the master branch.
-Then it runs `syncsubdeps`.
-
-The [syncsubdeps](https://github.com/tommie/v8go/.github/workflow/syncsubdeps.yml) workflow updates the `go.mod` file to point to the new commit.
-Each architecture in `deps/` is its own Go module.
-This is needed to work around size constraints in Go module handling due to the large libv8 files.
-But we still want them to be consistent across builds, something that needs to happen after the built files have been committed.
-Once this is done, the upgrade is complete.
-
-Releasing the library is a matter of running the [release](https://github.com/tommie/v8go/.github/workflow/release.yml) workflow.
-It reads `CHANGELOG.md`, creates a Git tag and a GitHub release.
-The tag is what matters for Go modules, and the GitHub release is useful for notifications.
-Releases happen automatically for upgrades.
-
-### Flushing after C/C++ standard library printing for debugging
-
-When using the C/C++ standard library functions for printing (e.g. `printf`), then the output will be buffered by default.
-This can cause some confusion, especially because the test binary (created through `go test`) does not flush the buffer
-at exit (at the time of writing). When standard output is the terminal, then it will use line buffering and flush when
-a new line is printed, otherwise (e.g. if the output is redirected to a pipe or file) it will be fully buffered and not even
-flush at the end of a line. When the test binary is executed through `go test .` (e.g. instead of
-separately compiled with `go test -c` and run with `./v8go.test`) Go may redirect standard output internally, resulting in
-standard output being fully buffered.
-
-A simple way to avoid this problem is to flush the standard output stream after printing with the `fflush(stdout);` statement.
-Not relying on the flushing at exit can also help ensure the output is printed before a crash.
-
-### Local leak checking
-
-Leak checking is automatically done in CI, but it can be useful to do locally to debug leaks.
-
-Leak checking is done using the [Leak Sanitizer](https://clang.llvm.org/docs/LeakSanitizer.html) which
-is a part of LLVM. As such, compiling with clang as the C/C++ compiler seems to produce more complete
-backtraces (unfortunately still only of the system stack at the time of writing).
-
-For instance, on a Debian-based Linux system, you can use `sudo apt-get install clang-12` to install a
-recent version of clang.  Then CC and CXX environment variables are needed to use that compiler. With
-that compiler, the tests can be run as follows
-
-```
-CC=clang-12 CXX=clang++-12 go test -c --tags leakcheck && ./v8go.test
-```
-
-The separate compile and link commands are currently needed to get line numbers in the backtrace.
-
-On macOS, leak checking isn't available with the version of clang that comes with Xcode, so a separate
-compiler installation is needed.  For example, with homebrew, `brew install llvm` will install a version
-of clang with support for this. The ASAN_OPTIONS environment variable will also be needed to run the code
-with leak checking enabled, since it isn't enabled by default on macOS. E.g. with the homebrew
-installation of llvm, the tests can be run with
-
-```
-CXX=$HOMEBREW_PREFIX/opt/llvm/bin/clang++ CC=$HOMEBREW_PREFIX/opt/llvm/bin/clang go test -c --tags leakcheck -ldflags=-compressdwarf=false
-ASAN_OPTIONS=detect_leaks=1 ./v8go.test
-```
-
-The `-ldflags=-compressdwarf=false` is currently (with clang 13) needed to get line numbers in the backtrace.
-
-### Formatting
-
-Go has `go fmt`, C has `clang-format`. Any changes to the `v8go.h|cc` should be formated with `clang-format` with the
-"Chromium" Coding style. This can be done easily by running the `go generate` command.
-
-`brew install clang-format` to install on macOS.
 
 ---
 
-V8 Gopher image based on original artwork from the amazing [Renee French](http://reneefrench.blogspot.com).
+## Modules (ES Modules)
+
+> **Important:** V8 is not Node.js. There's no `require()`, no `module.exports`, no CommonJS. If you're loading code that uses `exports` or `require`, it won't work — that's Node.js syntax, not JavaScript. V8 only supports ES Modules (`import`/`export`). If you need CommonJS compat, prepend a shim: `var exports = {}; var module = {exports};`
+
+```go
+mod, err := v8.CompileModule(iso, `export const x = 42;`, "module.js")
+if err != nil {
+    panic(err)
+}
+err = mod.InstantiateModule(ctx, resolver)
+val, err := mod.Evaluate(ctx)
+```
+
+---
+
+## Resource Limits
+
+### Memory limits
+
+> V8 can consume unbounded memory if scripts allocate without limit. `WithResourceConstraints` sets a hard ceiling. When the limit is approached, V8 calls a near-heap-limit callback that terminates execution — your `RunScript` call returns an error instead of the process being OOM-killed.
+
+```go
+iso := v8.NewIsolate(v8.WithResourceConstraints(0, 50*1024*1024)) // max 50MB
+// V8 calls TerminateExecution when limit is hit
+```
+
+### 🆕 Security tokens (multi-context isolation)
+
+> **When would you use this?** If you run multiple tenants' code in separate Contexts on the same Isolate (to save memory), security tokens prevent one Context from accessing another's globals through shared prototype chains. If you use one Isolate per tenant, you don't need this — Isolates are already fully isolated.
+
+```go
+token, _ := v8.NewValue(iso, "tenant-A")
+ctx.SetSecurityToken(token) // prevents cross-context access within same isolate
+```
+
+---
+
+## Pre-compiled Scripts (Code Cache)
+
+> **Why use this?** Parsing and compiling JavaScript has a real cost (especially for large scripts). If you run the same source code repeatedly in different contexts, you can compile it once and reuse the compiled bytecode. This skips the parsing+compilation step on subsequent runs — typically saving 20-40% of the first execution time.
+
+```go
+source := "const add = (a, b) => a + b"
+script, _ := iso.CompileUnboundScript(source, "math.js", v8.CompileOptions{Mode: v8.CompileModeEager})
+cache := script.CreateCodeCache()
+
+// Later, in a new isolate:
+script2, _ := iso2.CompileUnboundScript(source, "math.js", v8.CompileOptions{CachedData: cache})
+val, _ := script2.Run(ctx2)
+```
+
+---
+
+## CPU Profiler
+
+```go
+profiler := v8.NewCPUProfiler(iso)
+profiler.StartProfiling("my-profile")
+
+ctx.RunScript(code, "app.js")
+
+profile := profiler.StopProfiling("my-profile")
+root := profile.GetTopDownRoot()
+// Walk the call tree...
+```
+
+---
+
+## 🆕 Leak Detection (build tag)
+
+> **Why?** If you create Isolates or Contexts without properly calling `Dispose()`/`Close()`, they leak V8 heap memory (each Isolate reserves ~4GB of virtual address space). This profiling integration lets you catch leaks using Go's standard `pprof` tooling.
+
+Build with `-tags v8go_profiling` to enable pprof-based tracking of Isolate and Context creation/disposal:
+
+```go
+// With the build tag active:
+// pprof.Lookup("v8go.isolate") tracks live isolates
+// pprof.Lookup("v8go.context") tracks live contexts
+
+// Example: check for leaks in tests
+import "runtime/pprof"
+
+func TestNoLeaks(t *testing.T) {
+    // ... create and dispose isolates/contexts ...
+
+    if n := pprof.Lookup("v8go.isolate").Count(); n != 0 {
+        t.Errorf("leaked %d isolates", n)
+    }
+}
+```
+
+---
+
+## Inspector (Console API)
+
+```go
+type MyHandler struct{}
+func (h *MyHandler) ConsoleAPIMessage(msg v8.ConsoleAPIMessage) {
+    fmt.Printf("[%d] %s\n", msg.ErrorLevel, msg.Message)
+}
+
+client := v8.NewInspectorClient(&MyHandler{})
+inspector := v8.NewInspector(iso, client)
+inspector.ContextCreated(ctx)
+
+ctx.RunScript(`console.log("hello")`, "") // triggers handler
+```
+
+---
+
+## Build Configuration
+
+V8 is built with these GN flags (see `deps/build.py`):
+
+| Flag | Value | Purpose |
+|------|-------|---------|
+| `v8_enable_sandbox` | `false` | Disabled — requires libc++ hardening which conflicts with Go's CGo linking |
+| `v8_enable_pointer_compression` | `true` | 🆕 ~50% heap memory reduction |
+| `v8_enable_maglev` | `true` | 🆕 Mid-tier JIT for faster warmup |
+| `v8_enable_short_builtin_calls` | `true` | 🆕 Shorter x64 call sequences |
+| `v8_enable_webassembly` | `false` | 🆕 Reduced attack surface |
+| `v8_monolithic` | `true` | Single static archive |
+| `v8_enable_i18n_support` | `true` | Full Intl API support |
+
+---
+
+## v2 — Breaking Changes
+
+These methods changed signatures to return errors instead of panicking:
+
+| Method | Before | After |
+|--------|--------|-------|
+| `Value.Object()` | `*Object` | `(*Object, error)` |
+| `FunctionTemplate.GetFunction(ctx)` | `*Function` | `(*Function, error)` |
+| `Promise.Then(cbs...)` | `*Promise` | `(*Promise, error)` |
+| `Promise.Catch(cb)` | `*Promise` | `(*Promise, error)` |
+| `Promise.ThenWithError(cbs...)` | `*Promise` | `(*Promise, error)` |
+| `Promise.CatchWithError(cb)` | `*Promise` | `(*Promise, error)` |
+
+**Migration:** Add `, err` to the left side of these calls and handle the error.
+
+```go
+// Before:
+fn := tmpl.GetFunction(ctx)
+prom.Then(callback)
+
+// After:
+fn, err := tmpl.GetFunction(ctx)
+_, err = prom.Then(callback)
+```
+
+---
+
+## v2 — New Features
+
+| Feature | Description |
+|---------|-------------|
+| `Context.RunScriptWithTimeout` | Execute JS with a deadline — returns `ErrScriptTimeout` on expiry |
+| `Value.StringErr()` | String conversion that reports errors instead of returning empty |
+| `Value.AsArray()`, `Value.AsDate()`, `Value.AsMap()`, `Value.AsSet()` | Type-safe casting |
+| `NewArray`, `Array.Push/Pop/Shift/Unshift/Includes/IndexOf` | Full Array API |
+| `NewDate`, `Date.Time()`, `Date.ToISOString()`, `Date.GetFullYear()` | Date ↔ `time.Time` |
+| `NewMap`, `Map.MapGet/MapSet/MapHas/MapDelete/MapSize` | Native Map without eval |
+| `NewSet`, `Set.SetAdd/SetHas/SetDelete/SetSize` | Native Set without eval |
+| `NewRegExp`, `RegExp.Test()`, `RegExp.Source()`, `RegExp.Flags()` | Create and use regex from Go |
+| `NewArrayBufferFromBytes`, `NewUint8ArrayFromBytes` | Inject binary data into V8 |
+| `Value.ArrayBufferGetContents()` | Zero-copy read of ArrayBuffer bytes |
+| `Object.GetPropertyNames()`, `Object.GetOwnPropertyNames()` | Enumerate object keys |
+| `Object.DefineOwnProperty(key, val, attrs)` | Define properties with ReadOnly/DontDelete |
+| `Object.SetPrivate/GetPrivate/HasPrivate/DeletePrivate` | Properties invisible to JS |
+| `Isolate.SetMicrotasksPolicy()` | Control when Promise callbacks execute |
+| `Context.SetSecurityToken/GetSecurityToken` | Cross-context access control |
+| `JSError.Value` | Access original V8 exception object for rethrowing |
+| `Value.DetailString()` | No longer panics — returns fallback string on failure |
+| `Value.Release()` | Nil-safe, double-call safe |
+| Build tag `v8go_profiling` | pprof profiles for tracking Isolate/Context leaks |
+| V8 sandbox (`v8_enable_sandbox`) | Disabled — requires libc++ hardening incompatible with CGo |
+| Maglev JIT (`v8_enable_maglev`) | Faster warmup for short-lived scripts |
+| WebAssembly disabled | Reduced binary size and attack surface |
+| Null-byte safe strings | `RunScript`, `CompileModule`, `JSONParse` handle `\x00` correctly |
+| malloc safety | All C++ allocations check for NULL |
+
+---
+
+## Supported Platforms
+
+| OS | Arch | Status |
+|----|------|--------|
+| Linux | amd64, arm64 | ✅ |
+| macOS | amd64, arm64 | ✅ |
+| Android | amd64, arm64 | ✅ |
+| Windows | — | Community contribution needed |
+
+---
+
+## License
+
+See [LICENSE](LICENSE).
+
+V8 Gopher image based on original artwork from [Renee French](http://reneefrench.blogspot.com).

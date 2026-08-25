@@ -6,4 +6,5 @@ package darwin_amd64
 // #cgo LDFLAGS: -lv8-0 -lv8-1 -lv8-2
 // #cgo libgcompat LDFLAGS: -lgcompat
 // #cgo linux LDFLAGS: -ldl -latomic
+// #cgo darwin LDFLAGS: -framework CoreFoundation
 import "C"

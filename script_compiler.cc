@@ -20,7 +20,9 @@ m_unboundScript* tracked_unbound_script(m_ctx* ctx, m_unboundScript* us) {
 
 RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso,
                                              const char* s,
+                                             int s_len,
                                              const char* o,
+                                             int o_len,
                                              CompileOptions opts) {
   ISOLATE_SCOPE(iso);
   m_ctx* ctx = isolateInternalContext(iso);
@@ -30,10 +32,10 @@ RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso,
 
   RtnUnboundScript rtn = {};
 
-  Local<String> src =
-      String::NewFromUtf8(iso, s, NewStringType::kNormal).ToLocalChecked();
-  Local<String> ogn =
-      String::NewFromUtf8(iso, o, NewStringType::kNormal).ToLocalChecked();
+  Local<String> src = String::NewFromUtf8(iso, s, NewStringType::kNormal, s_len)
+                          .ToLocalChecked();
+  Local<String> ogn = String::NewFromUtf8(iso, o, NewStringType::kNormal, o_len)
+                          .ToLocalChecked();
 
   ScriptCompiler::CompileOptions option =
       static_cast<ScriptCompiler::CompileOptions>(opts.compileOption);
@@ -68,7 +70,9 @@ RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso,
 
 extern m_module* ScriptCompilerCompileModule(Isolate* iso,
                                              const char* s,
-                                             const char* o) {
+                                             int s_len,
+                                             const char* o,
+                                             int o_len) {
   v8::Locker locker(iso);
   v8::Isolate::Scope iso_scope(iso);
   v8::TryCatch try_catch(iso);
@@ -76,8 +80,10 @@ extern m_module* ScriptCompilerCompileModule(Isolate* iso,
   INTERNAL_CONTEXT(iso);
   v8::Context::Scope context_scope(ctx->ptr.Get(iso));
 
-  Local<String> src = String::NewFromUtf8(iso, s).ToLocalChecked();
-  Local<String> ogn = String::NewFromUtf8(iso, o).ToLocalChecked();
+  Local<String> src = String::NewFromUtf8(iso, s, NewStringType::kNormal, s_len)
+                          .ToLocalChecked();
+  Local<String> ogn = String::NewFromUtf8(iso, o, NewStringType::kNormal, o_len)
+                          .ToLocalChecked();
 
   ScriptOrigin origin(ogn,    // resource_name
                       0, 0,   // resource_line_offset, resource_column_offset

@@ -127,6 +127,24 @@ jobs:
         allowUpdates: true
         updateOnlyUnreleased: true
 
+    - name: Tag Sub-modules
+      run: |
+        version="${{ steps.changelog.outputs.version }}"
+        commit="${{ steps.find_commit.outputs.commit }}"
+        submods=(
+          deps/android_amd64
+          deps/android_arm64
+          deps/darwin_amd64
+          deps/darwin_arm64
+          deps/linux_amd64
+          deps/linux_arm64
+        )
+        for submod in "${submods[@]}"; do
+          tag="${submod}/${version}"
+          git tag "$tag" "$commit"
+        done
+        git push origin --tags
+
     - name: Create Summary
       run: |
         echo "Tag: ${{ steps.changelog.outputs.version }}" >>"$GITHUB_STEP_SUMMARY"

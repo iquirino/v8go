@@ -10,6 +10,7 @@ import "C"
 import (
 	"fmt"
 	"io"
+	"unsafe"
 )
 
 // JSError is an error that is returned if there is are any
@@ -19,6 +20,10 @@ type JSError struct {
 	Message    string
 	Location   string
 	StackTrace string
+	// Value holds the original JavaScript exception value, if available.
+	// This can be used to rethrow the error via iso.ThrowException(err.Value)
+	// or inspect the error object from Go.
+	Value *Value
 }
 
 func newJSError(rtnErr C.RtnError) error {
@@ -27,7 +32,12 @@ func newJSError(rtnErr C.RtnError) error {
 		Location:   C.GoString(rtnErr.location),
 		StackTrace: C.GoString(rtnErr.stack),
 	}
-	C.ErrorRelease(rtnErr)
+	if rtnErr.exception_value != nil {
+		err.Value = &Value{ptr: rtnErr.exception_value}
+	}
+	C.free(unsafe.Pointer(rtnErr.msg))
+	C.free(unsafe.Pointer(rtnErr.location))
+	C.free(unsafe.Pointer(rtnErr.stack))
 	return err
 }
 

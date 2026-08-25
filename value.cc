@@ -22,6 +22,10 @@ RtnString StringToRtnString(v8::Isolate* iso, Local<String> val) {
   RtnString res = {};
   res.length = val->Utf8Length(iso);
   res.data = static_cast<char*>(malloc(res.length));
+  if (res.data == nullptr) {
+    res.length = 0;
+    return res;
+  }
   val->WriteUtf8(iso, res.data, res.length);
   return res;
 }
@@ -223,8 +227,8 @@ ValuePtr NewValueExternal(IsolatePtr iso, void* v) {
   val->id = 0;
   val->iso = iso;
   val->ctx = ctx;
-  val->ptr = Global<Value>(
-      iso, External::New(iso, v, kExternalPointerTypeTagDefault));
+  val->ptr =
+      Global<Value>(iso, External::New(iso, v, kExternalPointerTypeTagDefault));
   return tracked_value(ctx, val);
 }
 
@@ -240,6 +244,9 @@ const uint32_t* ValueToArrayIndex(ValuePtr ptr) {
   }
 
   uint32_t* idx = (uint32_t*)malloc(sizeof(uint32_t));
+  if (idx == nullptr) {
+    return nullptr;
+  }
   *idx = array_index->Value();
   return idx;
 }
@@ -254,7 +261,7 @@ uintptr_t ValueToExternalUintptr(ValuePtr ptr) {
 }
 
 int ValueToBoolean(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->BooleanValue(iso);
 }
 
@@ -285,16 +292,12 @@ RtnString ValueToDetailString(ValuePtr ptr) {
 RtnString ValueToString(ValuePtr ptr) {
   LOCAL_VALUE(ptr);
   RtnString rtn = {0};
-  // String::Utf8Value will result in an empty string if conversion to a string
-  // fails
-  // TODO: Consider propagating the JS error. A fallback value could be returned
-  // in Value.String()
-  String::Utf8Value src(iso, value);
-  char* data = static_cast<char*>(malloc(src.length()));
-  memcpy(data, *src, src.length());
-  rtn.data = data;
-  rtn.length = src.length();
-  return rtn;
+  Local<String> str;
+  if (!value->ToString(local_ctx).ToLocal(&str)) {
+    rtn.error = ExceptionError(try_catch, iso, local_ctx);
+    return rtn;
+  }
+  return StringToRtnString(iso, str);
 }
 
 uint32_t ValueToUint32(ValuePtr ptr) {
@@ -312,6 +315,9 @@ ValueBigInt ValueToBigInt(ValuePtr ptr) {
   int word_count = bint->WordCount();
   int sign_bit = 0;
   uint64_t* words = (uint64_t*)malloc(sizeof(uint64_t) * word_count);
+  if (words == nullptr) {
+    return {nullptr, 0};
+  }
   bint->ToWordsArray(&sign_bit, &word_count, words);
   ValueBigInt rtn = {words, word_count, sign_bit};
   return rtn;
@@ -344,283 +350,283 @@ int ValueSameValue(ValuePtr val1, ValuePtr val2) {
 }
 
 int ValueIsUndefined(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsUndefined();
 }
 
 int ValueIsNull(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsNull();
 }
 
 int ValueIsNullOrUndefined(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsNullOrUndefined();
 }
 
 int ValueIsTrue(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsTrue();
 }
 
 int ValueIsFalse(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsFalse();
 }
 
 int ValueIsName(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsName();
 }
 
 int ValueIsString(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsString();
 }
 
 int ValueIsSymbol(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsSymbol();
 }
 
 int ValueIsFunction(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsFunction();
 }
 
 int ValueIsObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsObject();
 }
 
 int ValueIsBigInt(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsBigInt();
 }
 
 int ValueIsBoolean(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsBoolean();
 }
 
 int ValueIsNumber(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsNumber();
 }
 
 int ValueIsExternal(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsExternal();
 }
 
 int ValueIsInt32(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsInt32();
 }
 
 int ValueIsUint32(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsUint32();
 }
 
 int ValueIsDate(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsDate();
 }
 
 int ValueIsArgumentsObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsArgumentsObject();
 }
 
 int ValueIsBigIntObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsBigIntObject();
 }
 
 int ValueIsNumberObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsNumberObject();
 }
 
 int ValueIsStringObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsStringObject();
 }
 
 int ValueIsSymbolObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsSymbolObject();
 }
 
 int ValueIsNativeError(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsNativeError();
 }
 
 int ValueIsRegExp(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsRegExp();
 }
 
 int ValueIsAsyncFunction(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsAsyncFunction();
 }
 
 int ValueIsGeneratorFunction(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsGeneratorFunction();
 }
 
 int ValueIsGeneratorObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsGeneratorObject();
 }
 
 int ValueIsPromise(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsPromise();
 }
 
 int ValueIsMap(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsMap();
 }
 
 int ValueIsSet(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsSet();
 }
 
 int ValueIsMapIterator(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsMapIterator();
 }
 
 int ValueIsSetIterator(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsSetIterator();
 }
 
 int ValueIsWeakMap(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsWeakMap();
 }
 
 int ValueIsWeakSet(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsWeakSet();
 }
 
 int ValueIsArray(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsArray();
 }
 
 int ValueIsArrayBuffer(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsArrayBuffer();
 }
 
 int ValueIsArrayBufferView(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsArrayBufferView();
 }
 
 int ValueIsTypedArray(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsTypedArray();
 }
 
 int ValueIsUint8Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsUint8Array();
 }
 
 int ValueIsUint8ClampedArray(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsUint8ClampedArray();
 }
 
 int ValueIsInt8Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsInt8Array();
 }
 
 int ValueIsUint16Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsUint16Array();
 }
 
 int ValueIsInt16Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsInt16Array();
 }
 
 int ValueIsUint32Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsUint32Array();
 }
 
 int ValueIsInt32Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsInt32Array();
 }
 
 int ValueIsFloat32Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsFloat32Array();
 }
 
 int ValueIsFloat64Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsFloat64Array();
 }
 
 int ValueIsBigInt64Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsBigInt64Array();
 }
 
 int ValueIsBigUint64Array(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsBigUint64Array();
 }
 
 int ValueIsDataView(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsDataView();
 }
 
 int ValueIsSharedArrayBuffer(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsSharedArrayBuffer();
 }
 
 int ValueIsProxy(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsProxy();
 }
 
 int ValueIsWasmModuleObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsWasmModuleObject();
 }
 
 int ValueIsModuleNamespaceObject(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   return value->IsModuleNamespaceObject();
 }
 
 int ValueStrictEquals(ValuePtr ptr, ValuePtr otherPtr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   Local<Value> other = otherPtr->ptr.Get(iso);
   return value->StrictEquals(other);
 }
 
 RtnString ValueTypeOf(ValuePtr ptr) {
-  LOCAL_VALUE(ptr);
+  LOCAL_VALUE_READONLY(ptr);
   Local<String> result = value->TypeOf(iso);
   return StringToRtnString(iso, result);
 }

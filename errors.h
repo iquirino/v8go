@@ -1,10 +1,14 @@
 #ifndef V8GO_ERRORS_H
 #define V8GO_ERRORS_H
 
+typedef struct m_value m_value;
+typedef m_value* ValuePtr;
+
 typedef struct {
   char* msg;
   char* location;
   char* stack;
+  ValuePtr exception_value;
 } RtnError;
 
 #ifdef __cplusplus
@@ -26,9 +30,6 @@ extern RtnError ExceptionError(v8::TryCatch& try_catch,
 #endif
 
 extern void ErrorRelease(RtnError err);
-
-typedef struct m_value m_value;
-typedef m_value* ValuePtr;
 
 typedef enum {
   ERROR_RANGE = 1,

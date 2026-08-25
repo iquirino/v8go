@@ -53,7 +53,11 @@ extern ValuePtr ContextGlobal(ContextPtr ctx_ptr);
 extern void ContextFree(ContextPtr ctx);
 extern RtnValue RunScript(ContextPtr ctx_ptr,
                           const char* source,
-                          const char* origin);
+                          int source_len,
+                          const char* origin,
+                          int origin_len);
+extern void ContextSetSecurityToken(ContextPtr ctx, ValuePtr token);
+extern ValuePtr ContextGetSecurityToken(ContextPtr ctx);
 
 #ifdef __cplusplus
 }  // extern "C"

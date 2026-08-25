@@ -261,8 +261,7 @@ func (v *Value) Boolean() bool {
 func (v *Value) DetailString() string {
 	rtn := C.ValueToDetailString(v.ptr)
 	if rtn.data == nil {
-		err := newJSError(rtn.error)
-		panic(err) // TODO: Return a fallback value
+		return "<failed to get detail string>"
 	}
 	defer C.free(unsafe.Pointer(rtn.data))
 	return C.GoStringN(rtn.data, rtn.length)
@@ -288,22 +287,34 @@ func (v *Value) Number() float64 {
 
 // Object perform the equivalent of Object(value) in JS.
 // To just cast this value as an Object use AsObject() instead.
-func (v *Value) Object() *Object {
+func (v *Value) Object() (*Object, error) {
 	rtn := C.ValueToObject(v.ptr)
-	obj, err := objectResult(v.ctx, rtn)
-	if err != nil {
-		panic(err) // TODO: Return error
-	}
-	return obj
+	return objectResult(v.ctx, rtn)
 }
 
 // String perform the equivalent of `String(value)` in JS. Primitive values
 // are returned as-is, objects will return `[object Object]` and functions will
 // print their definition.
+// If the conversion fails (e.g., a proxy throws in toString()), an empty
+// string is returned. Use StringErr for error-aware conversion.
 func (v *Value) String() string {
+	s, _ := v.StringErr()
+	return s
+}
+
+// StringErr performs the equivalent of `String(value)` in JS, returning an
+// error if the conversion fails (e.g., a Symbol cannot be implicitly converted,
+// or a proxy's toString() throws).
+func (v *Value) StringErr() (string, error) {
 	s := C.ValueToString(v.ptr)
 	defer C.RtnStringRelease(s)
-	return C.GoStringN(s.data, C.int(s.length))
+	if s.data == nil {
+		if s.error.msg != nil {
+			return "", newJSError(s.error)
+		}
+		return "", nil
+	}
+	return C.GoStringN(s.data, C.int(s.length)), nil
 }
 
 // Uint32 perform the equivalent of `Number(value)` in JS and convert the result to an
@@ -398,7 +409,6 @@ func (v *Value) IsNumber() bool {
 
 // IsExternal returns true if this value is an `External` object.
 func (v *Value) IsExternal() bool {
-	// TODO(rogchap): requires test case
 	return C.ValueIsExternal(v.ptr) != 0
 }
 
@@ -595,18 +605,20 @@ func (v *Value) IsProxy() bool {
 
 // Release this value.  Using the value after calling this function will result in undefined behavior.
 func (v *Value) Release() {
+	if v.ptr == nil {
+		return
+	}
 	C.ValueRelease(v.ptr)
+	v.ptr = nil
 }
 
 // IsWasmModuleObject returns true if this value is a `WasmModuleObject`.
 func (v *Value) IsWasmModuleObject() bool {
-	// TODO(rogchap): requires test case
 	return C.ValueIsWasmModuleObject(v.ptr) != 0
 }
 
 // IsModuleNamespaceObject returns true if the value is a `Module` Namespace `Object`.
 func (v *Value) IsModuleNamespaceObject() bool {
-	// TODO(rogchap): requires test case
 	return C.ValueIsModuleNamespaceObject(v.ptr) != 0
 }
 
@@ -650,6 +662,24 @@ func (v *Value) AsFunction() (*Function, error) {
 	return &Function{v}, nil
 }
 
+// AsDate will cast the value to the Date type. If the value is not a Date
+// then an error is returned.
+func (v *Value) AsDate() (*Date, error) {
+	if !v.IsDate() {
+		return nil, errors.New("v8go: value is not a Date")
+	}
+	return &Date{&Object{v}}, nil
+}
+
+// AsArray will cast the value to the Array type. If the value is not an Array
+// then an error is returned.
+func (v *Value) AsArray() (*Array, error) {
+	if !v.IsArray() {
+		return nil, errors.New("v8go: value is not an Array")
+	}
+	return &Array{&Object{v}}, nil
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 func (v *Value) MarshalJSON() ([]byte, error) {
 	jsonStr, err := JSONStringify(nil, v)
@@ -673,6 +703,25 @@ func (v *Value) SharedArrayBufferGetContents() ([]byte, func(), error) {
 	byte_size := C.BackingStoreByteLength(backingStore)
 	byte_slice := unsafe.Slice(byte_ptr, byte_size)
 
+	return byte_slice, release, nil
+}
+
+// ArrayBufferGetContents returns the contents of an ArrayBuffer as a byte slice.
+// The returned slice is backed by V8's memory — do not use after calling release.
+func (v *Value) ArrayBufferGetContents() ([]byte, func(), error) {
+	if !v.IsArrayBuffer() {
+		return nil, nil, errors.New("v8go: value is not an ArrayBuffer")
+	}
+	backingStore := C.ArrayBufferGetBackingStore(v.ptr)
+	release := func() {
+		C.BackingStoreRelease(backingStore)
+	}
+	byte_ptr := (*byte)(unsafe.Pointer(C.BackingStoreData(backingStore)))
+	byte_size := C.BackingStoreByteLength(backingStore)
+	if byte_size == 0 {
+		return nil, release, nil
+	}
+	byte_slice := unsafe.Slice(byte_ptr, byte_size)
 	return byte_slice, release, nil
 }
 

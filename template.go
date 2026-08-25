@@ -46,13 +46,10 @@ func (t *template) Set(name string, val interface{}, attributes ...PropertyAttri
 	case *FunctionTemplate:
 		C.TemplateSetTemplate(t.ptr, cname, v.ptr, C.int(attrs))
 		runtime.KeepAlive(v)
-	case *Value:
-		if v.IsObject() || v.IsExternal() {
-			return errors.New("v8go: unsupported property: value type must be a primitive or use a template")
-		}
-		C.TemplateSetValue(t.ptr, cname, v.ptr, C.int(attrs))
+	case Valuer:
+		C.TemplateSetValue(t.ptr, cname, v.value().ptr, C.int(attrs))
 	default:
-		return fmt.Errorf("v8go: unsupported property type `%T`, must be one of string, int32, uint32, int64, uint64, float64, *big.Int, *v8go.Value, *v8go.ObjectTemplate or *v8go.FunctionTemplate", v)
+		return fmt.Errorf("v8go: unsupported property type `%T`, must be one of string, int32, uint32, int64, uint64, float64, *big.Int, Valuer, *v8go.ObjectTemplate or *v8go.FunctionTemplate", v)
 	}
 	runtime.KeepAlive(t)
 

@@ -212,12 +212,13 @@ int TemplateSetAnyTemplate(TemplatePtr ptr,
 
 /********** Context **********/
 
-RtnValue JSONParse(ContextPtr ctx, const char* str) {
+RtnValue JSONParse(ContextPtr ctx, const char* str, int str_len) {
   LOCAL_CONTEXT(ctx);
   RtnValue rtn = {};
 
   Local<String> v8Str;
-  if (!String::NewFromUtf8(iso, str, NewStringType::kNormal).ToLocal(&v8Str)) {
+  if (!String::NewFromUtf8(iso, str, NewStringType::kNormal, str_len)
+           .ToLocal(&v8Str)) {
     rtn.error = ExceptionError(try_catch, iso, local_ctx);
   }
 
@@ -540,5 +541,13 @@ size_t BackingStoreByteLength(BackingStorePtr ptr) {
     return 0;
   }
   return ptr->backing_store->ByteLength();
+}
+
+BackingStorePtr ArrayBufferGetBackingStore(ValuePtr ptr) {
+  LOCAL_VALUE(ptr);
+  auto buffer = Local<ArrayBuffer>::Cast(value);
+  auto backing_store = buffer->GetBackingStore();
+  auto proxy = new v8BackingStore(std::move(backing_store));
+  return proxy;
 }
 }

@@ -10,6 +10,9 @@
 extern "C" {
 #endif
 
+typedef struct m_ctx m_ctx;
+typedef m_ctx* ContextPtr;
+
 extern void ObjectSet(ValuePtr ptr, const char* key, ValuePtr val_ptr);
 extern void ObjectSetAnyKey(ValuePtr ptr, ValuePtr key, ValuePtr val_ptr);
 extern void ObjectSetIdx(ValuePtr ptr, uint32_t idx, ValuePtr val_ptr);
@@ -28,6 +31,32 @@ int ObjectDeleteAnyKey(ValuePtr ptr, ValuePtr key);
 int ObjectDeleteIdx(ValuePtr ptr, uint32_t idx);
 extern RtnValue ObjectGetPrototype(ValuePtr ptr);
 extern void ObjectSetPrototype(ValuePtr ptr, ValuePtr proto_ptr);
+
+extern ValuePtr NewArray(ContextPtr ctx, int length);
+extern int ArrayLength(ValuePtr ptr);
+
+extern RtnValue ObjectGetPropertyNames(ValuePtr ptr);
+extern RtnValue ObjectGetOwnPropertyNames(ValuePtr ptr);
+extern int ObjectDefineProperty(ValuePtr ptr, const char* key, ValuePtr val_ptr, int attributes);
+extern ValuePtr NewDate(ContextPtr ctx, double ms);
+extern double DateValueOf(ValuePtr ptr);
+extern ValuePtr NewRegExp(ContextPtr ctx, const char* pattern, int pattern_len, int flags);
+
+extern ValuePtr NewMap(ContextPtr ctx);
+extern RtnValue MapGet(ValuePtr ptr, ValuePtr key);
+extern void MapSet(ValuePtr ptr, ValuePtr key, ValuePtr val_ptr);
+extern int MapHas(ValuePtr ptr, ValuePtr key);
+extern int MapDelete(ValuePtr ptr, ValuePtr key);
+extern int MapSize(ValuePtr ptr);
+
+extern ValuePtr NewSet(ContextPtr ctx);
+extern void SetAdd(ValuePtr ptr, ValuePtr val_ptr);
+extern int SetHas(ValuePtr ptr, ValuePtr val_ptr);
+extern int SetDelete(ValuePtr ptr, ValuePtr val_ptr);
+extern int SetSize(ValuePtr ptr);
+
+extern ValuePtr NewArrayBufferFromBytes(ContextPtr ctx, const void* data, int length);
+extern ValuePtr NewUint8ArrayFromBytes(ContextPtr ctx, const void* data, int length);
 
 #ifdef __cplusplus
 }  // extern "C"

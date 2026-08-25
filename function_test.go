@@ -112,10 +112,10 @@ func TestFunctionCallError(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected an error, got none")
 	}
-	got := *(err.(*v8.JSError))
-	want := v8.JSError{Message: "error", Location: "script.js:1:21"}
-	if got != want {
-		t.Errorf("want %+v, got: %+v", want, got)
+	got := err.(*v8.JSError)
+
+	if got.Message != "error" || got.Location != "script.js:1:21" {
+		t.Errorf("unexpected JSError: %+v", got)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestFunctionNewInstance(t *testing.T) {
 	want := "test message"
 	got := message.String()
 	if got != want {
-		t.Errorf("want %+v, got: %+v", want, got)
+		t.Errorf("want %q, got: %q", want, got)
 	}
 }
 
@@ -196,9 +196,9 @@ func TestFunctionNewInstanceError(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected an error, got none")
 	}
-	got := *(err.(*v8.JSError))
-	want := v8.JSError{Message: "error", Location: "script.js:1:21"}
-	if got != want {
-		t.Errorf("want %+v, got: %+v", want, got)
+	got := err.(*v8.JSError)
+
+	if got.Message != "error" || got.Location != "script.js:1:21" {
+		t.Errorf("unexpected JSError: %+v", got)
 	}
 }

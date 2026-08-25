@@ -44,6 +44,7 @@ typedef IsolateConstraints* IsolateConstraintsPtr;
 
 extern IsolatePtr NewIsolate(IsolateConstraintsPtr constraints);
 extern void IsolatePerformMicrotaskCheckpoint(IsolatePtr ptr);
+extern void IsolateSetMicrotasksPolicy(IsolatePtr ptr, int policy);
 extern void IsolateDispose(IsolatePtr ptr);
 extern void IsolateTerminateExecution(IsolatePtr ptr);
 extern void IsolateSetPromiseRejectedCallback(IsolatePtr iso, uintptr_t handle);

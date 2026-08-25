@@ -170,6 +170,7 @@ extern void BackingStoreRelease(BackingStorePtr ptr);
 extern void* BackingStoreData(BackingStorePtr ptr);
 extern size_t BackingStoreByteLength(BackingStorePtr ptr);
 extern BackingStorePtr SharedArrayBufferGetBackingStore(ValuePtr ptr);
+extern BackingStorePtr ArrayBufferGetBackingStore(ValuePtr ptr);
 
 #ifdef __cplusplus
 }

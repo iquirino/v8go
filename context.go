@@ -74,6 +74,7 @@ func NewContext(opt ...ContextOption) *Context {
 	}
 	ctx.register()
 	runtime.KeepAlive(opts.gTmpl)
+	profileContextCreated(ctx)
 	return ctx
 }
 
@@ -97,7 +98,7 @@ func (c *Context) RunScript(source string, origin string) (*Value, error) {
 	defer C.free(unsafe.Pointer(cSource))
 	defer C.free(unsafe.Pointer(cOrigin))
 
-	rtn := C.RunScript(c.ptr, cSource, cOrigin)
+	rtn := C.RunScript(c.ptr, cSource, C.int(len(source)), cOrigin, C.int(len(origin)))
 	return valueResult(c, rtn)
 }
 
@@ -126,6 +127,7 @@ func (c *Context) Close() {
 	c.deregister()
 	C.ContextFree(c.ptr)
 	c.ptr = nil
+	profileContextClosed(c)
 }
 
 func (c *Context) register() {
@@ -180,4 +182,20 @@ func objectResult(ctx *Context, rtn C.RtnValue) (*Object, error) {
 		return nil, newJSError(rtn.error)
 	}
 	return &Object{&Value{rtn.value, ctx}}, nil
+}
+
+// SetSecurityToken sets the security token for this context. Contexts with
+// different security tokens cannot access each other's properties when sharing
+// the same isolate. Only relevant for multi-context-per-isolate patterns.
+func (c *Context) SetSecurityToken(token *Value) {
+	C.ContextSetSecurityToken(c.ptr, token.ptr)
+}
+
+// GetSecurityToken returns the security token for this context.
+func (c *Context) GetSecurityToken() *Value {
+	ptr := C.ContextGetSecurityToken(c.ptr)
+	if ptr == nil {
+		return nil
+	}
+	return &Value{ptr, c}
 }

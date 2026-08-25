@@ -54,6 +54,8 @@ void InspectorClient::consoleAPIMessage(int contextGroupId,
 extern "C" {
 
 v8Inspector* CreateInspector(v8Isolate* iso, v8InspectorClient* client) {
+  Locker locker(iso);
+  Isolate::Scope isolate_scope(iso);
   v8Inspector* inspector = V8Inspector::create(iso, client).release();
   return inspector;
 }

@@ -113,14 +113,14 @@ func NewFunctionTemplateWithError(
 }
 
 // GetFunction returns an instance of this function template bound to the given context.
-func (tmpl *FunctionTemplate) GetFunction(ctx *Context) *Function {
+func (tmpl *FunctionTemplate) GetFunction(ctx *Context) (*Function, error) {
 	rtn := C.FunctionTemplateGetFunction(tmpl.ptr, ctx.ptr)
 	runtime.KeepAlive(tmpl)
 	val, err := valueResult(ctx, rtn)
 	if err != nil {
-		panic(err) // TODO: Consider returning the error
+		return nil, err
 	}
-	return &Function{val}
+	return &Function{val}, nil
 }
 
 // InstanceTemplate gets the [ObjectTemplate] that is used for new object

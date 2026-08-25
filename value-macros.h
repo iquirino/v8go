@@ -26,4 +26,14 @@
   Context::Scope context_scope(local_ctx); \
   Local<Value> value = val->ptr.Get(iso);
 
+// LOCAL_VALUE_READONLY is a lighter macro for read-only type checks (IsXxx)
+// that don't need TryCatch or Context::Scope since they only read the
+// value's internal type tag.
+#define LOCAL_VALUE_READONLY(val)           \
+  Isolate* iso = val->iso;                 \
+  Locker locker(iso);                      \
+  Isolate::Scope isolate_scope(iso);       \
+  HandleScope handle_scope(iso);           \
+  Local<Value> value = val->ptr.Get(iso);
+
 #endif

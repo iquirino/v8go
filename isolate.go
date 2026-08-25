@@ -10,6 +10,7 @@ package v8go
 import "C"
 
 import (
+	"errors"
 	"runtime/cgo"
 	"strconv"
 	"sync"
@@ -162,12 +163,37 @@ func NewIsolate(opts ...IsolateOption) *Isolate {
 	}
 	iso.null = newValueNull(iso)
 	iso.undefined = newValueUndefined(iso)
+	profileIsolateCreated(iso)
 	return iso
+}
+
+// MicrotasksPolicy controls when microtasks (Promise callbacks, etc.) are executed.
+type MicrotasksPolicy int
+
+const (
+	// MicrotasksExplicit means microtasks are only run when PerformMicrotaskCheckpoint is called.
+	MicrotasksExplicit MicrotasksPolicy = 0
+	// MicrotasksScoped means microtasks run when the outermost script scope exits (default V8 behavior).
+	MicrotasksScoped MicrotasksPolicy = 1
+	// MicrotasksAuto means microtasks run automatically after each script/callback (Chrome behavior).
+	MicrotasksAuto MicrotasksPolicy = 2
+)
+
+// SetMicrotasksPolicy sets when microtasks (Promise callbacks) are executed.
+// Use MicrotasksExplicit to have full control via PerformMicrotaskCheckpoint.
+func (i *Isolate) SetMicrotasksPolicy(policy MicrotasksPolicy) {
+	if i.ptr == nil {
+		return
+	}
+	C.IsolateSetMicrotasksPolicy(i.ptr, C.int(policy))
 }
 
 // TerminateExecution terminates forcefully the current thread
 // of JavaScript execution in the given isolate.
 func (i *Isolate) TerminateExecution() {
+	if i.ptr == nil {
+		return
+	}
 	C.IsolateTerminateExecution(i.ptr)
 }
 
@@ -175,6 +201,9 @@ func (i *Isolate) TerminateExecution() {
 // Javascript execution. If true, there are still JavaScript frames
 // on the stack and the termination exception is still active.
 func (i *Isolate) IsExecutionTerminating() bool {
+	if i.ptr == nil {
+		return false
+	}
 	return C.IsolateIsExecutionTerminating(i.ptr) == 1
 }
 
@@ -193,6 +222,9 @@ func (i *Isolate) CompileUnboundScript(
 	source, origin string,
 	opts CompileOptions,
 ) (*UnboundScript, error) {
+	if i.ptr == nil {
+		return nil, errors.New("v8go: isolate has been disposed")
+	}
 	cSource := C.CString(source)
 	cOrigin := C.CString(origin)
 	defer C.free(unsafe.Pointer(cSource))
@@ -212,7 +244,7 @@ func (i *Isolate) CompileUnboundScript(
 		cOptions.compileOption = C.int(opts.Mode)
 	}
 
-	rtn := C.IsolateCompileUnboundScript(i.ptr, cSource, cOrigin, cOptions)
+	rtn := C.IsolateCompileUnboundScript(i.ptr, cSource, C.int(len(source)), cOrigin, C.int(len(origin)), cOptions)
 	if rtn.ptr == nil {
 		return nil, newJSError(rtn.error)
 	}
@@ -227,6 +259,9 @@ func (i *Isolate) CompileUnboundScript(
 
 // GetHeapStatistics returns heap statistics for an isolate.
 func (i *Isolate) GetHeapStatistics() HeapStatistics {
+	if i.ptr == nil {
+		return HeapStatistics{}
+	}
 	hs := C.IsolationGetHeapStatistics(i.ptr)
 
 	return HeapStatistics{
@@ -336,6 +371,9 @@ func (i *Isolate) addHandle(h cgo.Handle) cgo.Handle {
 // rejected. This includes rejections that may occur after a script value has
 // been evaluated and V8 is running microtasks.
 func (i *Isolate) SetPromiseRejectedCallback(cb RejectedPromiseCallback) {
+	if i.ptr == nil {
+		return
+	}
 	handle := C.uintptr_t(i.addHandle(cgo.NewHandle(cb)))
 	C.IsolateSetPromiseRejectedCallback(i.ptr, handle)
 }

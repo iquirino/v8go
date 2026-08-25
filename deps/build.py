@@ -95,6 +95,10 @@ v8_enable_test_features=false
 exclude_unwind_tables=true
 v8_android_log_stdout=true
 v8_enable_sandbox=false
+v8_enable_pointer_compression=true
+v8_enable_maglev=true
+v8_enable_short_builtin_calls=true
+v8_enable_webassembly=false
 v8_enable_temporal_support=false
 """
 

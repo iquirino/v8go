@@ -96,15 +96,19 @@ int ContextRetainedValueCount(ContextPtr ctx) {
   return ctx->vals.size();
 }
 
-RtnValue RunScript(ContextPtr ctx, const char* source, const char* origin) {
+RtnValue RunScript(ContextPtr ctx,
+                   const char* source,
+                   int source_len,
+                   const char* origin,
+                   int origin_len) {
   LOCAL_CONTEXT(ctx);
 
   RtnValue rtn = {};
 
   MaybeLocal<String> maybeSrc =
-      String::NewFromUtf8(iso, source, NewStringType::kNormal);
+      String::NewFromUtf8(iso, source, NewStringType::kNormal, source_len);
   MaybeLocal<String> maybeOgn =
-      String::NewFromUtf8(iso, origin, NewStringType::kNormal);
+      String::NewFromUtf8(iso, origin, NewStringType::kNormal, origin_len);
   Local<String> src, ogn;
   if (!maybeSrc.ToLocal(&src) || !maybeOgn.ToLocal(&ogn)) {
     rtn.error = ExceptionError(try_catch, iso, local_ctx);
@@ -130,4 +134,27 @@ RtnValue RunScript(ContextPtr ctx, const char* source, const char* origin) {
 
   rtn.value = tracked_value(ctx, val);
   return rtn;
+}
+
+void ContextSetSecurityToken(ContextPtr ctx, ValuePtr token) {
+  Isolate* iso = ctx->iso;
+  Locker locker(iso);
+  Isolate::Scope isolate_scope(iso);
+  HandleScope handle_scope(iso);
+  Local<Context> local_ctx = ctx->ptr.Get(iso);
+  local_ctx->SetSecurityToken(token->ptr.Get(iso));
+}
+
+ValuePtr ContextGetSecurityToken(ContextPtr ctx) {
+  LOCAL_CONTEXT(ctx);
+  Local<Value> token = local_ctx->GetSecurityToken();
+  if (token.IsEmpty() || token->IsUndefined()) {
+    return nullptr;
+  }
+  m_value* val = new m_value;
+  val->id = 0;
+  val->iso = iso;
+  val->ctx = ctx;
+  val->ptr = Global<Value>(iso, token);
+  return tracked_value(ctx, val);
 }

@@ -7,7 +7,7 @@ argp = argparse.ArgumentParser()
 argp.add_argument("--root-module", default="github.com/iquirino/v8go")
 argp.add_argument("--cgo-path-template", default="cgo_{os}_{arch}.go")
 argp.add_argument("--manifest-paths", default="deps/*_*/libmanifest")
-argp.add_argument("--min-go-version", default="1.19")
+argp.add_argument("--min-go-version", default="1.22")
 args = argp.parse_args()
 
 def get_libs(manifest_path):
@@ -56,6 +56,7 @@ package {os}_{arch}
 // #cgo LDFLAGS: {ldflags}
 // #cgo libgcompat LDFLAGS: -lgcompat
 // #cgo linux LDFLAGS: -ldl -latomic
+// #cgo darwin LDFLAGS: -framework CoreFoundation
 import "C"
 """
 

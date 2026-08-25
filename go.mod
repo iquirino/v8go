@@ -1,6 +1,6 @@
 module github.com/iquirino/v8go
 
-go 1.19
+go 1.22
 
 require (
 	github.com/iquirino/v8go/deps/android_amd64 v0.0.0-20260821023824-8fae4e44f4be

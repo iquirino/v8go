@@ -1,6 +1,9 @@
 package v8go_test
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func fatalIf(t *testing.T, err error) {
 	t.Helper()
@@ -9,7 +12,7 @@ func fatalIf(t *testing.T, err error) {
 	}
 }
 
-func recoverPanic(f func()) (recovered interface{}) {
+func recoverPanic(f func()) (recovered any) {
 	defer func() {
 		recovered = recover()
 	}()
@@ -17,13 +20,7 @@ func recoverPanic(f func()) (recovered interface{}) {
 	return nil
 }
 
-// errorsJoin is like [errors.Join] in the standard library. But this library
-// supports Go 1.19, which doesn't have errors.Join.
+// errorsJoin wraps errors.Join from the standard library.
 func errorsJoin(errs ...error) error {
-	for _, err := range errs {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return errors.Join(errs...)
 }

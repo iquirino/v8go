@@ -93,7 +93,7 @@ func (p *Promise) Result() *Value {
 // V8 only invokes the callback when processing "microtasks".
 // The default MicrotaskPolicy processes them when the call depth decreases to 0.
 // Call (*Context).PerformMicrotaskCheckpoint to trigger it manually.
-func (p *Promise) Then(cbs ...FunctionCallback) *Promise {
+func (p *Promise) Then(cbs ...FunctionCallback) (*Promise, error) {
 	cbwes := make([]FunctionCallbackWithError, len(cbs))
 	for i, cb := range cbs {
 		cb := cb
@@ -105,7 +105,7 @@ func (p *Promise) Then(cbs ...FunctionCallback) *Promise {
 	return p.ThenWithError(cbwes...)
 }
 
-func (p *Promise) ThenWithError(cbs ...FunctionCallbackWithError) *Promise {
+func (p *Promise) ThenWithError(cbs ...FunctionCallbackWithError) (*Promise, error) {
 	var rtn C.RtnValue
 	switch len(cbs) {
 	case 1:
@@ -117,29 +117,29 @@ func (p *Promise) ThenWithError(cbs ...FunctionCallbackWithError) *Promise {
 		rtn = C.PromiseThen2(p.ptr, C.int(cbID1), C.int(cbID2))
 
 	default:
-		panic("1 or 2 callbacks required")
+		return nil, errors.New("v8go: 1 or 2 callbacks required for Promise.Then")
 	}
 	obj, err := objectResult(p.ctx, rtn)
 	if err != nil {
-		panic(err) // TODO: Return error
+		return nil, err
 	}
-	return &Promise{obj}
+	return &Promise{obj}, nil
 }
 
 // Catch invokes the given function if the promise is rejected.
 // See Then for other details.
-func (p *Promise) Catch(cb FunctionCallback) *Promise {
+func (p *Promise) Catch(cb FunctionCallback) (*Promise, error) {
 	return p.CatchWithError(func(info *FunctionCallbackInfo) (*Value, error) {
 		return cb(info), nil
 	})
 }
 
-func (p *Promise) CatchWithError(cb FunctionCallbackWithError) *Promise {
+func (p *Promise) CatchWithError(cb FunctionCallbackWithError) (*Promise, error) {
 	cbID := p.ctx.iso.registerCallback(cb)
 	rtn := C.PromiseCatch(p.ptr, C.int(cbID))
 	obj, err := objectResult(p.ctx, rtn)
 	if err != nil {
-		panic(err) // TODO: Return error
+		return nil, err
 	}
-	return &Promise{obj}
+	return &Promise{obj}, nil
 }
