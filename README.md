@@ -571,7 +571,7 @@ V8 is built with these GN flags (see `deps/build.py`):
 
 | Flag | Value | Purpose |
 |------|-------|---------|
-| `v8_enable_sandbox` | `true` | 🆕 Heap memory isolation |
+| `v8_enable_sandbox` | `false` | Disabled — requires libc++ hardening which conflicts with Go's CGo linking |
 | `v8_enable_pointer_compression` | `true` | 🆕 ~50% heap memory reduction |
 | `v8_enable_maglev` | `true` | 🆕 Mid-tier JIT for faster warmup |
 | `v8_enable_short_builtin_calls` | `true` | 🆕 Shorter x64 call sequences |
@@ -631,7 +631,7 @@ _, err = prom.Then(callback)
 | `Value.DetailString()` | No longer panics — returns fallback string on failure |
 | `Value.Release()` | Nil-safe, double-call safe |
 | Build tag `v8go_profiling` | pprof profiles for tracking Isolate/Context leaks |
-| V8 sandbox (`v8_enable_sandbox`) | Heap isolation — memory corruption can't escape V8 |
+| V8 sandbox (`v8_enable_sandbox`) | Disabled — requires libc++ hardening incompatible with CGo |
 | Maglev JIT (`v8_enable_maglev`) | Faster warmup for short-lived scripts |
 | WebAssembly disabled | Reduced binary size and attack surface |
 | Null-byte safe strings | `RunScript`, `CompileModule`, `JSONParse` handle `\x00` correctly |
