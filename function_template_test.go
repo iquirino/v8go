@@ -106,7 +106,10 @@ func TestFunctionTemplateGetFunction(t *testing.T) {
 			reply, _ := v8.NewValue(iso, "hello")
 			return reply
 		})
-		fn := tmpl.GetFunction(ctx)
+		fn, err := tmpl.GetFunction(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
 		ten, err := v8.NewValue(iso, int32(10))
 		if err != nil {
 			t.Fatal(err)

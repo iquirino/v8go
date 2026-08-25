@@ -16,7 +16,6 @@ import (
 )
 
 func TestIsolateTerminateExecution(t *testing.T) {
-	t.Parallel()
 	iso := v8.NewIsolate()
 	defer iso.Dispose()
 
@@ -143,7 +142,6 @@ func TestIsolateCompileUnboundScript_InvalidOptions(t *testing.T) {
 }
 
 func TestIsolateGetHeapStatistics(t *testing.T) {
-	t.Parallel()
 	iso := v8.NewIsolate()
 	defer iso.Dispose()
 	ctx1 := v8.NewContext(iso)
@@ -163,7 +161,6 @@ func TestIsolateGetHeapStatistics(t *testing.T) {
 }
 
 func TestCallbackRegistry(t *testing.T) {
-	t.Parallel()
 
 	iso := v8.NewIsolate()
 	defer iso.Dispose()
@@ -184,7 +181,6 @@ func TestCallbackRegistry(t *testing.T) {
 }
 
 func TestIsolateDispose(t *testing.T) {
-	t.Parallel()
 
 	iso := v8.NewIsolate()
 	if iso.GetHeapStatistics().TotalHeapSize == 0 {
@@ -203,7 +199,6 @@ func TestIsolateDispose(t *testing.T) {
 }
 
 func TestIsolateThrowException(t *testing.T) {
-	t.Parallel()
 	iso := v8.NewIsolate()
 
 	strErr, _ := v8.NewValue(iso, "some type error")
@@ -259,7 +254,6 @@ func TestIsolateThrowException(t *testing.T) {
 }
 
 func TestIsolateSetPromiseRejectedCallback(t *testing.T) {
-	t.Parallel()
 	iso := v8.NewIsolate()
 	defer iso.Dispose()
 	ctx := v8.NewContext(iso)
@@ -301,15 +295,17 @@ func TestIsolateSetPromiseRejectedCallback(t *testing.T) {
 		op2  string                  // The second operation to run, resolve() or reject()
 		want []v8.PromiseRejectEvent // The expected events generated
 	}{
-		{"resolve()", "resolve()", []v8.PromiseRejectEvent{v8.PromiseResolveAfterResolved}},
-		{"resolve()", "reject()", []v8.PromiseRejectEvent{v8.PromiseRejectAfterResolved}},
+		// V8 15.1+ no longer fires PromiseResolveAfterResolved or
+		// PromiseRejectAfterResolved events for multiple resolutions.
+		{"resolve()", "resolve()", nil},
+		{"resolve()", "reject()", nil},
 		{
 			"reject()", "resolve()",
-			[]v8.PromiseRejectEvent{v8.PromiseRejectWithNoHandler, v8.PromiseResolveAfterResolved},
+			[]v8.PromiseRejectEvent{v8.PromiseRejectWithNoHandler},
 		},
 		{
 			"reject()", "reject()",
-			[]v8.PromiseRejectEvent{v8.PromiseRejectWithNoHandler, v8.PromiseRejectAfterResolved},
+			[]v8.PromiseRejectEvent{v8.PromiseRejectWithNoHandler},
 		},
 	}
 	for _, test := range testsWithMultipleResolutions {
@@ -372,7 +368,6 @@ func makeObject() interface{} {
 }
 
 func TestNewIsolateWithConstraints(t *testing.T) {
-	t.Parallel()
 
 	iso := v8.NewIsolate(v8.WithResourceConstraints(
 		8*1024*1024,

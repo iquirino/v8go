@@ -30,10 +30,11 @@ func TestPromiseFulfilled(t *testing.T) {
 	}
 
 	var thenInfo *v8.FunctionCallbackInfo
-	prom1thenVal := prom1.Then(func(info *v8.FunctionCallbackInfo) *v8.Value {
+	prom1thenVal, err := prom1.Then(func(info *v8.FunctionCallbackInfo) *v8.Value {
 		thenInfo = info
 		return nil
 	})
+	fatalIf(t, err)
 	prom1then, _ := prom1thenVal.AsPromise()
 	if prom1then.State() != v8.Pending {
 		t.Errorf("unexpected state for dependent Promise, want Pending got: %v", prom1then.State())
@@ -80,21 +81,22 @@ func TestPromiseRejected(t *testing.T) {
 
 	var thenInfo *v8.FunctionCallbackInfo
 	var then2Fulfilled, then2Rejected bool
-	prom2.
-		Catch(func(info *v8.FunctionCallbackInfo) *v8.Value {
-			thenInfo = info
+	caught, err := prom2.Catch(func(info *v8.FunctionCallbackInfo) *v8.Value {
+		thenInfo = info
+		return nil
+	})
+	fatalIf(t, err)
+	_, err = caught.Then(
+		func(_ *v8.FunctionCallbackInfo) *v8.Value {
+			then2Fulfilled = true
 			return nil
-		}).
-		Then(
-			func(_ *v8.FunctionCallbackInfo) *v8.Value {
-				then2Fulfilled = true
-				return nil
-			},
-			func(_ *v8.FunctionCallbackInfo) *v8.Value {
-				then2Rejected = true
-				return nil
-			},
-		)
+		},
+		func(_ *v8.FunctionCallbackInfo) *v8.Value {
+			then2Rejected = true
+			return nil
+		},
+	)
+	fatalIf(t, err)
 	ctx.PerformMicrotaskCheckpoint()
 	if thenInfo == nil {
 		t.Fatalf("expected Then to be called on already-resolved promise, but was not")
@@ -121,9 +123,12 @@ func TestPromiseThenCanThrow(t *testing.T) {
 
 	res, _ := v8.NewPromiseResolver(ctx)
 
-	promThenVal := res.GetPromise().ThenWithError(func(info *v8.FunctionCallbackInfo) (*v8.Value, error) {
+	promThenVal, err := res.GetPromise().ThenWithError(func(info *v8.FunctionCallbackInfo) (*v8.Value, error) {
 		return nil, errors.New("faked error")
 	})
+	if err != nil {
+		t.Fatalf("ThenWithError failed: %v", err)
+	}
 	promThen, err := promThenVal.AsPromise()
 	if err != nil {
 		t.Fatalf("AsPromise failed: %v", err)
@@ -153,14 +158,16 @@ func TestPromiseThenPanic(t *testing.T) {
 	prom := res.GetPromise()
 
 	t.Run("no callbacks", func(t *testing.T) {
-		defer func() { recover() }()
-		prom.Then()
-		t.Errorf("expected a panic")
+		_, err := prom.Then()
+		if err == nil {
+			t.Errorf("expected an error for zero callbacks")
+		}
 	})
 	t.Run("3 callbacks", func(t *testing.T) {
-		defer func() { recover() }()
 		fn := func(_ *v8.FunctionCallbackInfo) *v8.Value { return nil }
-		prom.Then(fn, fn, fn)
-		t.Errorf("expected a panic")
+		_, err := prom.Then(fn, fn, fn)
+		if err == nil {
+			t.Errorf("expected an error for 3 callbacks")
+		}
 	})
 }

@@ -4,8 +4,6 @@
 
 package v8go
 
-// TODO: Can v8go.h be removed?
-
 // #include <stdlib.h>
 // #include "script_compiler.h"
 import "C"

@@ -314,7 +314,7 @@ func WaitForPromise(ctx *v8.Context, p *v8.Promise) (*v8.Value, error) {
 	resolve := make(chan *v8.Value)
 	reject := make(chan error)
 
-	p.Then(func(info *v8.FunctionCallbackInfo) *v8.Value {
+	_, err := p.Then(func(info *v8.FunctionCallbackInfo) *v8.Value {
 		args := info.Args()
 		if len(args) > 0 {
 			resolve <- args[0]
@@ -338,6 +338,9 @@ func WaitForPromise(ctx *v8.Context, p *v8.Promise) (*v8.Value, error) {
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 	go ctx.PerformMicrotaskCheckpoint()
 
 	select {

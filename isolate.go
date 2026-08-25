@@ -10,6 +10,7 @@ package v8go
 import "C"
 
 import (
+	"errors"
 	"runtime/cgo"
 	"strconv"
 	"sync"
@@ -168,6 +169,9 @@ func NewIsolate(opts ...IsolateOption) *Isolate {
 // TerminateExecution terminates forcefully the current thread
 // of JavaScript execution in the given isolate.
 func (i *Isolate) TerminateExecution() {
+	if i.ptr == nil {
+		return
+	}
 	C.IsolateTerminateExecution(i.ptr)
 }
 
@@ -175,6 +179,9 @@ func (i *Isolate) TerminateExecution() {
 // Javascript execution. If true, there are still JavaScript frames
 // on the stack and the termination exception is still active.
 func (i *Isolate) IsExecutionTerminating() bool {
+	if i.ptr == nil {
+		return false
+	}
 	return C.IsolateIsExecutionTerminating(i.ptr) == 1
 }
 
@@ -193,6 +200,9 @@ func (i *Isolate) CompileUnboundScript(
 	source, origin string,
 	opts CompileOptions,
 ) (*UnboundScript, error) {
+	if i.ptr == nil {
+		return nil, errors.New("v8go: isolate has been disposed")
+	}
 	cSource := C.CString(source)
 	cOrigin := C.CString(origin)
 	defer C.free(unsafe.Pointer(cSource))
@@ -227,6 +237,9 @@ func (i *Isolate) CompileUnboundScript(
 
 // GetHeapStatistics returns heap statistics for an isolate.
 func (i *Isolate) GetHeapStatistics() HeapStatistics {
+	if i.ptr == nil {
+		return HeapStatistics{}
+	}
 	hs := C.IsolationGetHeapStatistics(i.ptr)
 
 	return HeapStatistics{
@@ -336,6 +349,9 @@ func (i *Isolate) addHandle(h cgo.Handle) cgo.Handle {
 // rejected. This includes rejections that may occur after a script value has
 // been evaluated and V8 is running microtasks.
 func (i *Isolate) SetPromiseRejectedCallback(cb RejectedPromiseCallback) {
+	if i.ptr == nil {
+		return
+	}
 	handle := C.uintptr_t(i.addHandle(cgo.NewHandle(cb)))
 	C.IsolateSetPromiseRejectedCallback(i.ptr, handle)
 }
