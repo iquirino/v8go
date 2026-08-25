@@ -96,7 +96,11 @@ int ContextRetainedValueCount(ContextPtr ctx) {
   return ctx->vals.size();
 }
 
-RtnValue RunScript(ContextPtr ctx, const char* source, int source_len, const char* origin, int origin_len) {
+RtnValue RunScript(ContextPtr ctx,
+                   const char* source,
+                   int source_len,
+                   const char* origin,
+                   int origin_len) {
   LOCAL_CONTEXT(ctx);
 
   RtnValue rtn = {};

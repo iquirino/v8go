@@ -32,10 +32,10 @@ RtnUnboundScript IsolateCompileUnboundScript(IsolatePtr iso,
 
   RtnUnboundScript rtn = {};
 
-  Local<String> src =
-      String::NewFromUtf8(iso, s, NewStringType::kNormal, s_len).ToLocalChecked();
-  Local<String> ogn =
-      String::NewFromUtf8(iso, o, NewStringType::kNormal, o_len).ToLocalChecked();
+  Local<String> src = String::NewFromUtf8(iso, s, NewStringType::kNormal, s_len)
+                          .ToLocalChecked();
+  Local<String> ogn = String::NewFromUtf8(iso, o, NewStringType::kNormal, o_len)
+                          .ToLocalChecked();
 
   ScriptCompiler::CompileOptions option =
       static_cast<ScriptCompiler::CompileOptions>(opts.compileOption);
@@ -80,8 +80,10 @@ extern m_module* ScriptCompilerCompileModule(Isolate* iso,
   INTERNAL_CONTEXT(iso);
   v8::Context::Scope context_scope(ctx->ptr.Get(iso));
 
-  Local<String> src = String::NewFromUtf8(iso, s, NewStringType::kNormal, s_len).ToLocalChecked();
-  Local<String> ogn = String::NewFromUtf8(iso, o, NewStringType::kNormal, o_len).ToLocalChecked();
+  Local<String> src = String::NewFromUtf8(iso, s, NewStringType::kNormal, s_len)
+                          .ToLocalChecked();
+  Local<String> ogn = String::NewFromUtf8(iso, o, NewStringType::kNormal, o_len)
+                          .ToLocalChecked();
 
   ScriptOrigin origin(ogn,    // resource_name
                       0, 0,   // resource_line_offset, resource_column_offset

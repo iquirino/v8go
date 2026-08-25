@@ -217,7 +217,8 @@ RtnValue JSONParse(ContextPtr ctx, const char* str, int str_len) {
   RtnValue rtn = {};
 
   Local<String> v8Str;
-  if (!String::NewFromUtf8(iso, str, NewStringType::kNormal, str_len).ToLocal(&v8Str)) {
+  if (!String::NewFromUtf8(iso, str, NewStringType::kNormal, str_len)
+           .ToLocal(&v8Str)) {
     rtn.error = ExceptionError(try_catch, iso, local_ctx);
   }
 

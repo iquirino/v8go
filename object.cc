@@ -255,7 +255,10 @@ RtnValue ObjectGetOwnPropertyNames(ValuePtr ptr) {
   return rtn;
 }
 
-int ObjectDefineProperty(ValuePtr ptr, const char* key, ValuePtr val_ptr, int attributes) {
+int ObjectDefineProperty(ValuePtr ptr,
+                         const char* key,
+                         ValuePtr val_ptr,
+                         int attributes) {
   LOCAL_OBJECT(ptr);
   Local<String> key_val =
       String::NewFromUtf8(iso, key, NewStringType::kNormal).ToLocalChecked();
@@ -289,14 +292,19 @@ double DateValueOf(ValuePtr ptr) {
 
 /********** RegExp **********/
 
-ValuePtr NewRegExp(ContextPtr ctx, const char* pattern, int pattern_len, int flags) {
+ValuePtr NewRegExp(ContextPtr ctx,
+                   const char* pattern,
+                   int pattern_len,
+                   int flags) {
   LOCAL_CONTEXT(ctx);
   Local<String> pat;
-  if (!String::NewFromUtf8(iso, pattern, NewStringType::kNormal, pattern_len).ToLocal(&pat)) {
+  if (!String::NewFromUtf8(iso, pattern, NewStringType::kNormal, pattern_len)
+           .ToLocal(&pat)) {
     return nullptr;
   }
   Local<RegExp> re;
-  if (!RegExp::New(local_ctx, pat, static_cast<RegExp::Flags>(flags)).ToLocal(&re)) {
+  if (!RegExp::New(local_ctx, pat, static_cast<RegExp::Flags>(flags))
+           .ToLocal(&re)) {
     return nullptr;
   }
   m_value* val = new m_value;
@@ -341,7 +349,8 @@ RtnValue MapGet(ValuePtr ptr, ValuePtr key) {
 void MapSet(ValuePtr ptr, ValuePtr key, ValuePtr val_ptr) {
   LOCAL_VALUE(ptr);
   Local<Map> map = value.As<Map>();
-  map->Set(local_ctx, key->ptr.Get(iso), val_ptr->ptr.Get(iso)).ToLocalChecked();
+  map->Set(local_ctx, key->ptr.Get(iso), val_ptr->ptr.Get(iso))
+      .ToLocalChecked();
 }
 
 int MapHas(ValuePtr ptr, ValuePtr key) {

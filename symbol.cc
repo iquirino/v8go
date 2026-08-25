@@ -67,13 +67,19 @@ const char* SymbolDescription(ValuePtr ptr) {
 
 /********** Private **********/
 
-int ObjectSetPrivate(ValuePtr ptr, const char* key, int key_len, ValuePtr val_ptr) {
+int ObjectSetPrivate(ValuePtr ptr,
+                     const char* key,
+                     int key_len,
+                     ValuePtr val_ptr) {
   LOCAL_VALUE(ptr);
   Local<Object> obj = value.As<Object>();
-  Local<String> str = String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len).ToLocalChecked();
+  Local<String> str =
+      String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len)
+          .ToLocalChecked();
   Local<Private> priv = Private::ForApi(iso, str);
   Maybe<bool> result = obj->SetPrivate(local_ctx, priv, val_ptr->ptr.Get(iso));
-  if (result.IsNothing()) return 0;
+  if (result.IsNothing())
+    return 0;
   return result.ToChecked() ? 1 : 0;
 }
 
@@ -81,7 +87,9 @@ RtnValue ObjectGetPrivate(ValuePtr ptr, const char* key, int key_len) {
   LOCAL_VALUE(ptr);
   Local<Object> obj = value.As<Object>();
   RtnValue rtn = {};
-  Local<String> str = String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len).ToLocalChecked();
+  Local<String> str =
+      String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len)
+          .ToLocalChecked();
   Local<Private> priv = Private::ForApi(iso, str);
   Local<Value> result;
   if (!obj->GetPrivate(local_ctx, priv).ToLocal(&result)) {
@@ -100,19 +108,25 @@ RtnValue ObjectGetPrivate(ValuePtr ptr, const char* key, int key_len) {
 int ObjectHasPrivate(ValuePtr ptr, const char* key, int key_len) {
   LOCAL_VALUE(ptr);
   Local<Object> obj = value.As<Object>();
-  Local<String> str = String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len).ToLocalChecked();
+  Local<String> str =
+      String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len)
+          .ToLocalChecked();
   Local<Private> priv = Private::ForApi(iso, str);
   Maybe<bool> result = obj->HasPrivate(local_ctx, priv);
-  if (result.IsNothing()) return 0;
+  if (result.IsNothing())
+    return 0;
   return result.ToChecked() ? 1 : 0;
 }
 
 int ObjectDeletePrivate(ValuePtr ptr, const char* key, int key_len) {
   LOCAL_VALUE(ptr);
   Local<Object> obj = value.As<Object>();
-  Local<String> str = String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len).ToLocalChecked();
+  Local<String> str =
+      String::NewFromUtf8(iso, key, NewStringType::kNormal, key_len)
+          .ToLocalChecked();
   Local<Private> priv = Private::ForApi(iso, str);
   Maybe<bool> result = obj->DeletePrivate(local_ctx, priv);
-  if (result.IsNothing()) return 0;
+  if (result.IsNothing())
+    return 0;
   return result.ToChecked() ? 1 : 0;
 }
