@@ -45,3 +45,30 @@ func NewRegExp(ctx *Context, pattern string, flags RegExpFlags) (*RegExp, error)
 	val := &Value{ptr, ctx}
 	return &RegExp{&Object{val}}, nil
 }
+
+// Test tests the given string against this RegExp. Returns true if it matches.
+func (r *RegExp) Test(str Valuer) (bool, error) {
+	val, err := r.MethodCall("test", str)
+	if err != nil {
+		return false, err
+	}
+	return val.Boolean(), nil
+}
+
+// Source returns the pattern source text of this RegExp.
+func (r *RegExp) Source() (string, error) {
+	val, err := r.Get("source")
+	if err != nil {
+		return "", err
+	}
+	return val.String(), nil
+}
+
+// Flags returns the flags string (e.g., "gi") of this RegExp.
+func (r *RegExp) Flags() (string, error) {
+	val, err := r.Get("flags")
+	if err != nil {
+		return "", err
+	}
+	return val.String(), nil
+}
