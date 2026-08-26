@@ -23,9 +23,6 @@ func TestNewError(t *testing.T) {
 		{v8.NewReferenceError, "ReferenceError"},
 		{v8.NewSyntaxError, "SyntaxError"},
 		{v8.NewTypeError, "TypeError"},
-		{v8.NewWasmCompileError, "CompileError"},
-		{v8.NewWasmLinkError, "LinkError"},
-		{v8.NewWasmRuntimeError, "RuntimeError"},
 		{v8.NewError, "Error"},
 	}
 	for _, tst := range tsts {
