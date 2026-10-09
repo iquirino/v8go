@@ -16,9 +16,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', '-v', default=False, action='store_true')
 parser.add_argument('--debug', default=False, action='store_true')
 parser.add_argument('--ccache', default=False, action='store_true')
-parser.add_argument('--clang', action='store_true')
-parser.add_argument('--no-clang', dest='clang', action='store_false')
-parser.set_defaults(clang=None)
 # GitHub file size limits: warning at 50 MB, hard limit at 100 MB.
 # Symbol indices can add 15% in the final .ar, so we need margin.
 parser.add_argument('--max-file-size', default=int(40e6))
@@ -39,11 +36,12 @@ deps_path = os.path.dirname(os.path.realpath(__file__))
 v8_path = os.path.join(deps_path, "v8")
 tools_path = os.path.join(deps_path, "depot_tools")
 is_windows = platform.system().lower() == "windows"
-# Default to clang everywhere. V8 15.x assumes clang: its arm64 SIMD paths use
-# clang-only SVE/NEON builtins that GCC cannot compile, and clang is the
-# configuration V8/Chromium actually test on Linux. Pass --no-clang to force
-# GCC (not supported for arm64).
-is_clang = args.clang if args.clang is not None else True
+# V8 is always built with clang, the configuration V8/Chromium develop and test
+# against. Its arm64 SIMD paths use clang-only SVE/NEON builtins that GCC cannot
+# compile, and GCC builds required a stack of local patches/toolchain fixups
+# that are no longer maintained. GN still takes an is_clang flag, so keep this
+# constant for the gn_args template below.
+is_clang = True
 
 def get_custom_deps():
     # These deps are unnecessary for building.
@@ -131,12 +129,6 @@ def build_gn_args():
     )
     if args.ccache:
         gnargs += 'cc_wrapper="ccache"\n'
-    if not is_clang and arch == "arm64":
-        # https://chromium.googlesource.com/chromium/deps/icu/+/2958a507f15e475045906d73af39018d5038a93b
-        # introduced -mmark-bti-property, which isn't supported by GCC.
-        #
-        # V8 itself fixed this in https://chromium-review.googlesource.com/c/v8/v8/+/3930160.
-        gnargs += 'arm_control_flow_integrity="none"\n'
     if args.os == "darwin":
         # V8 15.x's PartitionAlloc allocator shim (allocator_shim/*_apple) declares
         # operator new/delete in a way that conflicts with the macOS libc++ <new>
@@ -185,35 +177,6 @@ def apply_patch(patch_name, working_dir):
     patch_path = os.path.join(deps_path, os_arch(), patch_name + ".patch")
     subprocess_check_call(["git", "apply", "-v", patch_path], cwd=working_dir)
 
-def fixup_gcc_toolchain_ar():
-    """Give the Linux GCC toolchain an absolute path to `ar`.
-
-    V8 15.x lists `ar` as an explicit build input via
-    `rebase_path(ar, ".", root_out_dir)` (build/toolchain/gcc_toolchain.gni).
-    When `ar` is a bare command name it resolves to a nonexistent build-relative
-    path and ninja fails with "'ar', needed by ..., missing and no known rule".
-    The clang toolchains avoid this by using an absolute llvm-ar path; the GCC
-    toolchains use bare names, so we rewrite them here. build/ is a gclient dep
-    that `gclient sync` resets on every build, so this must run post-sync rather
-    than live in deps/patches/.
-    """
-    if args.os != "linux" or is_clang:
-        return
-    build_gn = os.path.join(v8_path, "build", "toolchain", "linux", "BUILD.gn")
-    with open(build_gn) as f:
-        content = f.read()
-    if args.arch == "amd64":
-        ar_abs = shutil.which("ar")
-        if ar_abs:
-            content = content.replace('ar = "ar"', 'ar = "%s"' % ar_abs)
-    elif args.arch == "arm64":
-        ar_abs = shutil.which("aarch64-linux-gnu-ar")
-        if ar_abs:
-            # First occurrence is the arm64 gcc_toolchain block.
-            content = content.replace('ar = "${toolprefix}ar"', 'ar = "%s"' % ar_abs, 1)
-    with open(build_gn, "w") as f:
-        f.write(content)
-
 def strip_crel_cflags():
     """Remove V8's experimental ELF CREL relocation cflag on Linux.
 
@@ -255,10 +218,10 @@ def split_ar(src_fn, dest_fn, dest_obj_dn):
     """
     dest_path = os.path.dirname(dest_fn)
 
+    # V8 is built with clang, so archive with the bundled llvm-ar. Fall back to
+    # the system ar if the bundled binary isn't available.
     ar_path = os.path.abspath(os.path.join(v8_path, "third_party/llvm-build/Release+Asserts/bin/llvm-ar"))
-    if args.os == "linux" and args.arch == "arm64" and not is_clang:
-        ar_path = "aarch64-linux-gnu-ar"
-    elif not os.access(ar_path, os.X_OK) or not is_clang:
+    if not os.access(ar_path, os.X_OK):
         ar_path = "ar"
 
     if os.path.exists(dest_obj_dn):
@@ -367,24 +330,22 @@ def allocate_disjoint_files(ar_files, case_sensitive=True):
 def reset_build_edits():
     """Revert any cached edits build.py makes inside deps/v8/build.
 
-    build.py mutates two gclient-managed files post-sync:
-      - toolchain/linux/BUILD.gn (fixup_gcc_toolchain_ar, GCC only)
+    build.py mutates one gclient-managed file post-sync:
       - config/compiler/BUILD.gn (strip_crel_cflags, all Linux)
     The CI caches deps/v8/build, and gclient sync refuses to run when a managed
-    dependency has local modifications, so undo both before syncing. No-op on a
+    dependency has local modifications, so undo it before syncing. No-op on a
     fresh checkout.
     """
     build_dir = os.path.join(v8_path, "build")
     if not os.path.isdir(build_dir):
         return
-    for rel in ("toolchain/linux/BUILD.gn", "config/compiler/BUILD.gn"):
+    for rel in ("config/compiler/BUILD.gn",):
         if os.path.exists(os.path.join(build_dir, rel)):
             subprocess.call(["git", "checkout", "--", rel], cwd=build_dir)
 
 def main():
     reset_build_edits()
     v8deps()
-    fixup_gcc_toolchain_ar()
     strip_crel_cflags()
     if is_windows:
         apply_mingw_patches()

@@ -66,6 +66,11 @@ jobs:
         go test -v -coverprofile coverage.out -skip "TestSameModuleImportedMultipleTimes|TestScriptCompilerImportingNonExistingModule|TestScriptCompilerMissingModule" ./... || \
         go test -v -coverprofile coverage.out -skip "TestSameModuleImportedMultipleTimes|TestScriptCompilerImportingNonExistingModule|TestScriptCompilerMissingModule" ./...
       env:
+        # Build the cgo glue with clang to match how V8 itself is compiled
+        # (deps/build.py defaults to clang) and the leakcheck workflow. clang is
+        # preinstalled on the ubuntu runners and is the default on macOS.
+        CC: clang
+        CXX: clang++
         CGO_CXXFLAGS: "-Werror"
 
     - name: Upload Coverage To Codecov
