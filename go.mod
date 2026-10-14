@@ -3,12 +3,12 @@ module github.com/iquirino/v8go
 go 1.22
 
 require (
-	github.com/iquirino/v8go/deps/android_amd64 v1.2.1-0.20261009180013-a7c11d030af9
-	github.com/iquirino/v8go/deps/android_arm64 v1.2.1-0.20261009180013-a7c11d030af9
-	github.com/iquirino/v8go/deps/darwin_amd64 v1.2.1-0.20261009180013-a7c11d030af9
-	github.com/iquirino/v8go/deps/darwin_arm64 v1.2.1-0.20261009180013-a7c11d030af9
-	github.com/iquirino/v8go/deps/linux_amd64 v1.2.1-0.20261009180013-a7c11d030af9
-	github.com/iquirino/v8go/deps/linux_arm64 v1.2.1-0.20261009180013-a7c11d030af9
+	github.com/iquirino/v8go/deps/android_amd64 v1.2.1-0.20261014024814-6421b443ca7c
+	github.com/iquirino/v8go/deps/android_arm64 v1.2.1-0.20261014024814-6421b443ca7c
+	github.com/iquirino/v8go/deps/darwin_amd64 v1.2.1-0.20261014024814-6421b443ca7c
+	github.com/iquirino/v8go/deps/darwin_arm64 v1.2.1-0.20261014024814-6421b443ca7c
+	github.com/iquirino/v8go/deps/linux_amd64 v1.2.1-0.20261014024814-6421b443ca7c
+	github.com/iquirino/v8go/deps/linux_arm64 v1.2.1-0.20261014024814-6421b443ca7c
 )
 
 // The deps/<os>_<arch> modules live in this repository. Resolve them from the
